@@ -34,6 +34,7 @@ public struct PreviewToolExecutor: ToolExecutor {
     public func execute(_ request: ToolRequest) async throws -> String {
         switch request {
         case .switchDesktop(let direction): "Vorschau: Schreibtischwechsel nach \(direction.rawValue)."
+        case .findProject(let query): "Vorschau: Lokale Projektsuche nach \(query)."
         case .openApplication(let identifier):
             "Aktionsvorschau: Programm \(identifier) öffnen."
         case .createNote(let text):

@@ -72,11 +72,17 @@ public struct AssistantRouter: Sendable {
             switch plan {
             case .answer(let answer):
                 return AssistantResponse(text: answer, route: .reasoning)
+            case .researchedAnswer(let answer, let sources):
+                return AssistantResponse(text: answer, route: .reasoning, sources: sources)
             case .actions(let actions):
                 guard (1...3).contains(actions.count), actions.allSatisfy({ request in
                     if case .runExecutable = request { return false }
                     return request.hasValidArguments
                 }), actions.enumerated().allSatisfy({ index, action in !actions.prefix(index).contains(action) }) else {
+                    throw FridayError.invalidActionPlan
+                }
+                // Lookup may need a user's choice; do not combine it with other actions.
+                if actions.count > 1, actions.contains(where: { if case .findProject = $0 { return true }; return false }) {
                     throw FridayError.invalidActionPlan
                 }
                 var results: [String] = []

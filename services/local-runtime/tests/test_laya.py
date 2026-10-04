@@ -21,6 +21,7 @@ def prediction():
                     "create_note": 0.10,
                     "search_web": 0.0,
                     "switch_desktop": 0.0,
+                    "find_project": 0.0,
                     "reasoning": 0.06,
                     "unknown": 0.03,
                 },
@@ -78,7 +79,7 @@ def test_ready_follows_warmup_and_request_uses_choice_probability(tmp_path):
     assert agent.calls[-1][0] == "Öffne Safari."
     question = agent.calls[-1][1]["intent"]
     assert question["type"] == "choice"
-    assert set(question["criteria"]) == {"open_app", "search_web", "create_note", "switch_desktop", "reasoning", "unknown"}
+    assert set(question["criteria"]) == {"open_app", "search_web", "create_note", "switch_desktop", "find_project", "reasoning", "unknown"}
     assert all(isinstance(value, str) and value for value in question["criteria"].values())
     assert agent.closed
 

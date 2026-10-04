@@ -4,12 +4,16 @@ import FridayCore
 
 public struct MacToolExecutor: ToolExecutor {
     public let notesDirectory: URL
-    public init(notesDirectory: URL = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes")) {
+    public let projectLocator: MacProjectLocator
+    public init(notesDirectory: URL = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes"),
+                projectLocator: MacProjectLocator = MacProjectLocator()) {
         self.notesDirectory = notesDirectory
+        self.projectLocator = projectLocator
     }
 
     public func execute(_ request: ToolRequest) async throws -> String {
         try Task.checkCancellation()
+        await projectLocator.clearMatches()
         switch request {
         case .openApplication(let identifier):
             guard request.hasValidArguments else { throw AdapterError.unavailable("Ungültiger Programmname.") }
@@ -25,6 +29,8 @@ public struct MacToolExecutor: ToolExecutor {
             return "Notiz gespeichert: \(filename)"
         case .switchDesktop(let direction):
             return try await Self.switchDesktop(direction)
+        case .findProject(let query):
+            return try await projectLocator.find(query: query)
         case .runExecutable:
             throw AdapterError.unavailable("Freie Terminalbefehle sind in V1 noch nicht eingerichtet.")
         }

@@ -29,6 +29,7 @@ public actor JSONLineProcess {
     private let arguments: [String]
     private let directory: String?
     private let environment: [String: String]
+    private let startupTimeout: Double
     private var process: Process?
     private var stdin: FileHandle?
     private var stdout: FileHandle?
@@ -40,11 +41,12 @@ public actor JSONLineProcess {
     private var pending: [String: CheckedContinuation<Data, any Error>] = [:]
     private var generation = UUID()
 
-    public init(executable: String, arguments: [String], directory: String? = nil, environment: [String: String] = [:]) {
+    public init(executable: String, arguments: [String], directory: String? = nil, environment: [String: String] = [:], startupTimeout: Double = 60) {
         self.executable = executable
         self.arguments = arguments
         self.directory = directory
         self.environment = environment
+        self.startupTimeout = startupTimeout
         (events, eventContinuation) = AsyncStream<Data>.makeStream(bufferingPolicy: .bufferingNewest(128))
     }
 
@@ -103,8 +105,9 @@ public actor JSONLineProcess {
         }
         do { try Task.checkCancellation(); try child.run() }
         catch { await stop(reason: error); throw error }
+        let startupLimit = startupTimeout
         let deadline = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(60))
+            try? await Task.sleep(for: .seconds(startupLimit))
             guard !Task.isCancelled else { return }
             await self?.expiredStartup(token)
         }

@@ -33,10 +33,11 @@ struct MascotImage: View {
 }
 
 @MainActor final class FridayAppDelegate: NSObject, NSApplicationDelegate {
-    static var openAssistant: (() -> Void)?
     let model = AssistantViewModel.live()
+    private var assistantWindow: NSWindow?
     private var mascotPanel: NSPanel?
     private var overlaySubscription: AnyCancellable?
+    private var projectSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.prepare()
@@ -57,6 +58,9 @@ struct MascotImage: View {
         overlaySubscription = model.$overlayTranscript.combineLatest(model.$isRecording).sink { [weak self] text, recording in
             self?.layoutMascot(transcript: text, recording: recording)
         }
+        projectSubscription = model.$projectMatches.dropFirst().sink { [weak self] matches in
+            if !matches.isEmpty { self?.showAssistant() }
+        }
         positionMascot()
         panel.orderFrontRegardless()
         NotificationCenter.default.addObserver(
@@ -76,8 +80,20 @@ struct MascotImage: View {
                              width: size.width, height: size.height), display: true)
     }
 
-    private func showAssistant() {
-        Self.openAssistant?()
+    func showAssistant() {
+        if assistantWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 660),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                  backing: .buffered, defer: false)
+            window.title = "Friday"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: AssistantView(model: model))
+            window.minSize = NSSize(width: 500, height: 520)
+            window.center()
+            assistantWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        assistantWindow?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

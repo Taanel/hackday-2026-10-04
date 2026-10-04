@@ -3,7 +3,8 @@
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
 „Friday“ und „Hey Friday“, deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
-optional mit der macOS-Stimme vorgelesen werden.
+optional mit Gemini-TTS auf Deutsch vorgelesen werden. Friday startet als Menüleisten-App
+mit transparentem Overlay, ohne Dock-Icon oder automatisch geöffnetes Fenster.
 
 ## Starten
 
@@ -38,8 +39,9 @@ Autorisierung des Schlüssels bei Google wird erst beim API-Aufruf geprüft.
 `runtime.json` enthält nur Provider/Modell. API-Keys werden nicht in Git gespeichert.
 Für eine stabile App-Identität kann `FRIDAY_SIGNING_IDENTITY` beim Bauen gesetzt oder
 deren Name/Hash in `~/Library/Application Support/Friday/signing-identity` gespeichert
-werden. Nur der
-Reasoning-Pfad sendet den Anfrage-Text an Google; Hex, Wake und Laya bleiben lokal.
+werden. Reasoning und neuronale Sprachausgabe senden Anfrage- bzw. Antworttext an
+Google; Hex, Wake und Laya bleiben lokal. Recherche sendet Suchbegriffe an DuckDuckGo
+oder den ausdrücklich genannten Wetter-Ort an Open-Meteo.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
 ## Direkt testen
@@ -66,15 +68,46 @@ Wake ist standardmäßig aus und pausiert während Aufnahme, Verarbeitung und TT
 Im Idle und bei Wake-Bereitschaft bleibt der Orb als Ring stehen, ohne Beschriftung.
 Während der Aufnahme wobbelt derselbe 2D-Ring. Ausführung zeigt kreisende Punkte;
 Gemini zeigt die verschachtelnde solving-Animation. Nach Hex erscheint der erkannte Befehl
-am Overlay, bis acht Sekunden nach Ende der Verarbeitung. Beim nächsten Befehl wird
+am Overlay; nach erfolgreicher Computeraktion verschwindet er nach einer Sekunde,
+bei Fragen nach acht Sekunden. Beim nächsten Befehl wird
 er entfernt. Das ist kein Wort-für-Wort-Live-Transkript.
-LLM-Antworten werden standardmäßig mit der kostenlosen lokalen macOS-Sprach-API
-vorgelesen und direkt im Fenster angezeigt; der Schalter kann die Sprachausgabe
+Gemini-Antworten werden standardmäßig mit Gemini 3.8 Flash-Lite TTS vorgelesen;
+Kore, Aoede und Charon sind auswählbar. Der vorhandene lokale Gemini-Schlüssel genügt.
+Bei Sprachfehlern bleibt die Textantwort erhalten. Ollama nutzt weiterhin die lokale
+macOS-Stimme. Der Schalter kann die Sprachausgabe
 ausschalten. Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard.
 Bei Überlastung übernimmt Gemini 3.8 Flash mit niedrigem Thinking. Das
 überlastete Modell wird danach zwei Minuten lang nicht erneut angefragt.
 „Noch einmal vorlesen“ wiederholt die letzte LLM-Antwort, ohne eine neue Gemini-
-Anfrage. Während Aufnahme, Verarbeitung oder Wiedergabe ist Replay gesperrt.
+Text-Anfrage. TTS erzeugt beim Replay neue Audiodaten. Während Aufnahme, Verarbeitung oder Wiedergabe ist Replay gesperrt.
+
+Aktuelle Fragen können über DuckDuckGo Lite recherchiert werden. Gemini erhält bis
+zu fünf Suchergebnisse mit Snippets und formuliert daraus eine Antwort mit getrennten,
+klickbaren Quellen. Das ist kein vollständiger Abruf der Quellseiten; bei Captchas
+oder fehlenden Daten erscheint eine klare Meldung. Wetterfragen verwenden echte
+Open-Meteo-Daten bis 16 Tage. Ohne Ort fragt Friday nach der Stadt; ein kurzer
+Gesprächskontext bleibt im Arbeitsspeicher für Antworten wie „Berlin“ erhalten.
+Suchdaten können keine zusätzlichen Computeraktionen auslösen. Googles integrierte
+Suche ist bei diesem kostenlosen Schlüssel nicht verfügbar und wird nicht verwendet.
+
+Die Kugel in der Menüleiste öffnet das Friday-Menü; „Friday öffnen“ oder ein Klick
+auf die Overlay-Kugel öffnet Einstellungen und Antworten. Schließen dieses Fensters
+beendet Friday nicht. „Beenden“ im Menü beendet auch die Mikrofon-Helper.
+
+Unter „Orbs zuordnen · 9 Animationen“ einen Zustand wählen und auf die gewünschte
+Animation klicken. Die Zuordnung gilt sofort für Overlay und Fenster und bleibt
+lokal gespeichert. Alle neun Zustände sind einzeln einstellbar; „Standard
+wiederherstellen“ setzt alle Zuordnungen zurück. Idle/Wake-Bereitschaft bleiben
+auch mit anderer Auswahl statisch.
+
+„Friday, finde Projekt hackday“ oder „Such mir den Terminal-Tab raus, wo ich
+Projekt Friday offen habe“ sucht lokal in Fenstertiteln und im sichtbaren Text von
+Terminal.app-Tabs. Ein Treffer wird fokussiert; bei mehreren öffnet sich eine
+Auswahl im Friday-Fenster. Dafür sind Bedienungshilfen und beim ersten Terminal-
+Zugriff die macOS-Automationsfreigabe erforderlich. Gelesene Titel und Inhalte
+gehen weder an Gemini noch an TTS. Die Suche liest keine Screenshots, komplette
+Terminal-History oder Browser-/Editor-Inhalte. macOS übernimmt beim Fokussieren
+den Wechsel zum zugehörigen Schreibtisch; Friday ermittelt keine Space-Nummern.
 
 „Wechsel Schreibtisch“, „Wechsle zum nächsten Schreibtisch“ und „Wechsel Schreibtisch
 nach links“ senden Control + Pfeiltaste. Dafür „Computersteuerung erlauben“ anklicken
@@ -87,7 +120,7 @@ erneut über Gemini ausgeführt. Das ist noch kein allgemeiner Klick-Agent.
 
 Unterstützte erste Aktionen: automatisch erkannte installierte Programme öffnen, Safari-Suchen starten und Markdown-Notizen
 unter `~/Library/Application Support/Friday/Notes` speichern. Freie Terminalbefehle,
-Klicken in fremden Apps, Einfügen am Cursor und Web-Recherche folgen später.
+Klicken in fremden Apps und Einfügen am Cursor folgen später.
 „Diktat-Vorschau“ zeigt den erkannten Text. „LLM-Antwort vorlesen“ ist optional;
 App-Starts und Notizen bleiben stumm.
 
@@ -97,11 +130,12 @@ App-Starts und Notizen bleiben stumm.
 | --- | --- |
 | Wake | Moonshine Tiny Streaming für Friday / Hey Friday; zusätzlich persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
-| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus sechs Intents |
-| Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel |
+| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus sieben Intents |
+| Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
-| Text → Sprache | macOS-Systemstimme; optionaler Cloud-Adapter später |
-| Oberfläche | Thinking Orb als SwiftUI/AppKit-Overlay; native MIT-Animationen |
+| Text → Sprache | Gemini 3.8 Flash-Lite TTS für Gemini; macOS-Systemstimme bei Ollama |
+| Recherche | DuckDuckGo-Snippets, Open-Meteo-Prognose, Quellen separat zur Antwort |
+| Oberfläche | Menüleisten-Kugel und transparentes Thinking-Orb-Overlay; native MIT-Animationen |
 
 Laya-/Wake-Modelle und Revisionen stehen nach Setup in `models.json`; Hex-Release
 und Prüfsumme in `hex-release.json`, beide im Friday-Application-Support-Ordner.

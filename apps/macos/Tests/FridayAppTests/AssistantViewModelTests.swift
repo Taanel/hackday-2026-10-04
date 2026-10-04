@@ -60,15 +60,38 @@ private struct Tools: ToolExecutor {
     #expect(speech.texts == ["Ein ausführlicher Plan."])
 }
 
-@Test @MainActor func directComputerActionStaysSilentEvenWhenTTSIsEnabled() async {
+@Test(arguments: [ToolRequest.openApplication(bundleIdentifier: "com.apple.Safari"), .findProject(query: "Private Project")]) @MainActor
+func directComputerActionStaysSilentEvenWhenTTSIsEnabled(request: ToolRequest) async {
     let speech = SpeechSpy()
-    let model = model(intent: .action(.openApplication(bundleIdentifier: "com.apple.Safari")), speech: speech)
+    let model = model(intent: .action(request), speech: speech)
     model.speakResponses = true
     model.submit()
     await model.task?.value
     #expect(model.response == "Aktion erledigt.")
     #expect(speech.texts.isEmpty)
     #expect(model.phase == .idle)
+}
+
+@Test @MainActor func completedAppCommandDisappearsAfterOneSecond() async throws {
+    let model = model(intent: .action(.openApplication(bundleIdentifier: "com.apple.Safari")), speech: SpeechSpy())
+    model.submit(); await model.task?.value
+    #expect(model.overlayTranscript == "Öffne Safari")
+    try await Task.sleep(for: .milliseconds(1150))
+    #expect(model.overlayTranscript.isEmpty)
+}
+
+@MainActor private final class BrokenSpeech: SpeechOutput {
+    func speak(_ text: String) async throws { throw AdapterError.unavailable("TTS nicht verfügbar") }
+    func stop() {}
+}
+
+@Test @MainActor func voiceFailureKeepsTheAnswerAvailableForReadingAndReplay() async {
+    let model = AssistantViewModel(router: AssistantRouter(decisions: Decision(intent: .reasoning), reasoning: Reasoning(), tools: Tools()), speech: BrokenSpeech())
+    model.submit(); await model.task?.value
+    #expect(model.response == "Ein ausführlicher Plan.")
+    #expect(model.canReplayAnswer)
+    #expect(model.status.contains("Sprachausgabe"))
+    #expect(!model.isWorking)
 }
 
 @Test(arguments: [false, true]) @MainActor

@@ -55,7 +55,7 @@ private final class GeminiRetryProtocol: URLProtocol, @unchecked Sendable {
     let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
     #expect(body["contents"] != nil)
     #expect(body["systemInstruction"] != nil)
-    #expect(body["tools"] == nil)
+    #expect(body["tools"] != nil)
     #expect(!String(data: request.httpBody!, encoding: .utf8)!.contains("test-key"))
 }
 
@@ -69,6 +69,16 @@ private final class GeminiRetryProtocol: URLProtocol, @unchecked Sendable {
     let flashBody = try JSONSerialization.jsonObject(with: flash.httpBody!) as! [String: Any]
     let flashGeneration = flashBody["generationConfig"] as! [String: Any]
     #expect((flashGeneration["thinkingConfig"] as! [String: Any])["thinkingLevel"] as? String == "LOW")
+}
+
+@Test func weatherLocationReplyPreservesThePreviousQuestion() throws {
+    let history = [GeminiTurn(role: "user", text: "Wie wird das Wetter nächste Woche?"), GeminiTurn(role: "model", text: "Für welche Stadt?")]
+    let request = try GeminiReasoningEngine.makeRequest(text: "Berlin", apiKey: "test-key", model: "gemini-3.5-flash-lite", history: history)
+    let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+    let messages = body["contents"] as! [[String: Any]]
+    #expect(messages.count == 3)
+    #expect(messages.map { $0["role"] as! String } == ["user", "model", "user"])
+    #expect(String(data: request.httpBody!, encoding: .utf8)!.contains("Wie wird das Wetter nächste Woche?"))
 }
 
 private final class CredentialLoads: @unchecked Sendable {

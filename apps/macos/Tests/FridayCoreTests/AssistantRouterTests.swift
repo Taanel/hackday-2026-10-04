@@ -62,7 +62,7 @@ private struct Planner: ActionPlanningReasoningEngine {
 @Test func llmActionsCannotRunArbitraryTerminalCommandsOrRepeatActions() async {
     let note = ToolRequest.createNote(text: "test")
     let terminal = ToolRequest.runExecutable(TerminalCommand(executablePath: "/bin/echo", arguments: ["test"], workingDirectory: URL(fileURLWithPath: "/tmp")))
-    for actions in [[], [note, note], [terminal], [note, .createNote(text: " ")]] {
+    for actions in [[], [note, note], [terminal], [note, .createNote(text: " ")], [.findProject(query: "Friday"), note]] {
         let tools = ToolSpy()
         let router = AssistantRouter(decisions: DecisionStub(.failure), reasoning: Planner(result: .actions(actions)), tools: tools)
         await #expect(throws: (any Error).self) { try await router.handle("Befehl") }

@@ -12,6 +12,14 @@ import FridayAdapters
     @Published private(set) var overlayTranscript = ""
     @Published private(set) var canReplayAnswer = false
     @Published private(set) var response = ""
+    @Published private(set) var answerSources: [AnswerSource] = []
+    @Published private(set) var projectMatches: [ProjectMatch] = []
+    @Published var ttsVoice = UserDefaults.standard.string(forKey: "Friday.ttsVoice") ?? "Kore" {
+        didSet {
+            cloudSpeech?.voiceName = ttsVoice
+            UserDefaults.standard.set(ttsVoice, forKey: "Friday.ttsVoice")
+        }
+    }
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
     @Published private(set) var phase: AssistantPhase = .idle
@@ -25,6 +33,9 @@ import FridayAdapters
 
     private let router: AssistantRouter
     private let speech: any SpeechOutput
+    private var cloudSpeech: GeminiSpeechOutput?
+    private var projectLocator: MacProjectLocator?
+    var usesCloudSpeech: Bool { cloudSpeech != nil }
     private let keyStore: LocalGeminiKeyStore
     private var gemini: GeminiReasoningEngine?
     private var replayText: String?
@@ -64,6 +75,7 @@ import FridayAdapters
         do {
             try keyStore.save(geminiKeyInput)
             await gemini?.invalidateCredentials()
+            await cloudSpeech?.invalidateCredentials()
             geminiKeyInput = ""
             geminiKeyConfigured = true
             geminiKeyStatus = "Lokal gespeichert · kein Schlüsselbundzugriff."
@@ -138,13 +150,20 @@ import FridayAdapters
                 reasoning = OllamaReasoningEngine(model: configuration.ollamaModel)
                 reasoningLabel = "Ollama · lokal"
             }
+            let cloudSpeech = configuration.reasoningProvider == "gemini" ? GeminiSpeechOutput() : nil
+            let projectLocator = MacProjectLocator()
+            let speech: any SpeechOutput
+            if let cloudSpeech { speech = cloudSpeech } else { speech = SystemSpeechOutput() }
             let model = AssistantViewModel(router: AssistantRouter(
                 decisions: LayaDecisionEngine(worker: laya, parser: parser),
                 reasoning: reasoning,
-                tools: MacToolExecutor(), minimumConfidence: 0.75
-            ))
+                tools: MacToolExecutor(projectLocator: projectLocator), minimumConfidence: 0.75
+            ), speech: speech)
             model.isLive = true; model.isReady = false
             model.gemini = gemini
+            model.cloudSpeech = cloudSpeech
+            model.projectLocator = projectLocator
+            cloudSpeech?.voiceName = model.ttsVoice
             model.reasoningLabel = reasoningLabel
             model.hex = hex; model.layaWorker = laya
             let voice = VoiceController(wake: wake)
@@ -288,8 +307,11 @@ import FridayAdapters
         replayText = nil; canReplayAnswer = false
         isWorking = true
         response = ""
+        answerSources = []
+        projectMatches = []
         status = "Verarbeite …"
         task = Task {
+            var successfulAction = false
             defer {
                 if let audioFile { try? FileManager.default.removeItem(at: audioFile) }
                 if generation == token { isWorking = false; task = nil }
@@ -311,7 +333,13 @@ import FridayAdapters
                 }
                 try Task.checkCancellation()
                 guard generation == token else { throw CancellationError() }
+                let matches = await projectLocator?.matches ?? []
+                try Task.checkCancellation()
+                guard generation == token else { return }
                 response = result.text
+                answerSources = result.sources
+                projectMatches = matches
+                successfulAction = result.route == .fastAction
                 if result.route == .reasoning { replayText = result.text; canReplayAnswer = true }
                 switch result.route {
                 case .fastAction: status = isLive ? "Aktion ausgeführt" : "Schnelle Aktion · Vorschau"
@@ -321,7 +349,9 @@ import FridayAdapters
                 // Computer actions finish visually; only requested LLM answers are spoken.
                 if shouldSpeak && result.route == .reasoning {
                     phase = .speaking
-                    try await speech.speak(result.text)
+                    do { try await speech.speak(result.text) }
+                    catch is CancellationError { throw CancellationError() }
+                    catch { status = "Antwort erhalten · Sprachausgabe: \(error.localizedDescription)" }
                 }
                 try Task.checkCancellation()
                 phase = .idle
@@ -340,7 +370,30 @@ import FridayAdapters
                 }
             }
             await rearmVoice(token: token)
-            if generation == token { expireTranscript() }
+            if generation == token { expireTranscript(after: successfulAction ? .seconds(1) : .seconds(8)) }
+        }
+    }
+
+    func focusProjectMatch(_ id: UUID) {
+        guard !shuttingDown, !isWorking, let projectLocator else { return }
+        let token = UUID(); generation = token
+        isWorking = true; phase = .acting; status = "Fokussiere den gewählten Treffer …"
+        task = Task {
+            defer { if generation == token { isWorking = false; task = nil } }
+            do {
+                await voice?.suspend()
+                try Task.checkCancellation()
+                let result = try await projectLocator.focus(id)
+                guard generation == token else { return }
+                response = result; projectMatches = []; phase = .idle; status = "Projekt gefunden"
+            } catch is CancellationError {
+                guard generation == token else { return }
+                phase = .idle; status = "Abgebrochen"
+            } catch {
+                guard generation == token else { return }
+                response = error.localizedDescription; phase = .failed; status = "Treffer nicht verfügbar"
+            }
+            await rearmVoice(token: token)
         }
     }
 

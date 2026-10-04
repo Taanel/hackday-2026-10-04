@@ -3,7 +3,6 @@ import FridayCore
 import FridayAdapters
 
 struct AssistantView: View {
-    @Environment(\.openWindow) private var openWindow
     @ObservedObject var model: AssistantViewModel
     @State private var showsOrbGallery = false
 
@@ -39,6 +38,22 @@ struct AssistantView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Antwort").font(.headline)
                         Text(model.response).textSelection(.enabled)
+                        ForEach(model.answerSources, id: \.url) { source in
+                            Link(source.title, destination: source.url).font(.caption)
+                        }
+                        ForEach(model.projectMatches) { match in
+                            Button { model.focusProjectMatch(match.id) } label: {
+                                HStack {
+                                    Image(systemName: "macwindow")
+                                    VStack(alignment: .leading) {
+                                        Text(match.application).font(.caption).foregroundStyle(.secondary)
+                                        Text(match.title).lineLimit(2)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.up.forward")
+                                }.frame(maxWidth: .infinity)
+                            }.disabled(model.isWorking)
+                        }
                         if model.canReplayAnswer {
                             Button("Noch einmal vorlesen", systemImage: "speaker.wave.2.fill") { model.replayAnswer() }
                                 .disabled(model.isWorking)
@@ -106,6 +121,15 @@ struct AssistantView: View {
                 }
                 Text("Computeraktionen und Diktat bleiben stumm.")
                     .font(.caption).foregroundStyle(.secondary)
+                if model.usesCloudSpeech {
+                    Picker("Stimme", selection: $model.ttsVoice) {
+                        Text("Kore · klar").tag("Kore")
+                        Text("Aoede · entspannt").tag("Aoede")
+                        Text("Charon · ruhig").tag("Charon")
+                    }.disabled(model.isWorking)
+                    Text("Natürliche deutsche Stimme · Gemini-TTS · nutzt deinen lokal gespeicherten Schlüssel.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
 
                 HStack {
                     Button("Computersteuerung erlauben", systemImage: "keyboard") {
@@ -119,7 +143,7 @@ struct AssistantView: View {
                     if !model.isReady { Button("Erneut laden") { model.prepare() } }
                 }
 
-                DisclosureGroup("Orb-Vorschau · 9 Animationen", isExpanded: $showsOrbGallery) {
+                DisclosureGroup("Orbs zuordnen · 9 Animationen", isExpanded: $showsOrbGallery) {
                     OrbGallery()
                 }
 
@@ -141,11 +165,5 @@ struct AssistantView: View {
             .padding(24)
         }
         .frame(minWidth: 500, minHeight: 520)
-        .onAppear {
-            FridayAppDelegate.openAssistant = {
-                openWindow(id: "assistant")
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
     }
 }

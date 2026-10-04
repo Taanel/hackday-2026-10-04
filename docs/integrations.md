@@ -44,7 +44,8 @@ Laya liefert typisierte Auswahl-, Score- und Ja/Nein-Entscheidungen statt
 generiertem Antworttext. Es passt damit zum Routing zwischen vordefinierten Aktionen.
 
 Anschlusspunkt: `LayaDecisionEngine.decide(text:)`.
-Kandidaten: Programm öffnen, Safari-Suche, Notiz erstellen, Reasoning, unbekannt.
+Kandidaten: Programm öffnen, Safari-Suche, Notiz erstellen, Schreibtisch wechseln,
+offenes Projekt finden, Reasoning, unbekannt.
 Der Python-Worker verwendet [laya-coreml](https://github.com/mizorewww/laya-coreml) 0.2.0
 und die gepinnten multilingual Core-ML-Gewichte. Swift kommuniziert über JSON-Zeilen.
 Deutschqualität, Konfidenz und Latenz mit realen Mac-Befehlen messen.
@@ -56,27 +57,42 @@ ein ausgewählter Intent ist noch kein ausführbarer Terminalbefehl.
 Anschlusspunkt: `ReasoningEngine.respond(to:)`.
 `ai.py` zeigt den vorhandenen Ollama-Aufruf mit `llama3.2` als Startpunkt.
 OllamaReasoningEngine verwendet die lokale Chat-API mit Fehlerbehandlung, Deadline und Abbruch. Ein anderer lokaler oder gehosteter Provider lässt sich dahinter austauschen.
-Recherchen benötigen zusätzlich Such-/Browserwerkzeuge und Quellen.
+Gemini kann `search_web(query)` oder `weather_forecast(location)` anfordern.
+`WebResearchService` liefert DuckDuckGo-Lite-Snippets (höchstens fünf) bzw. aktuelle
+Open-Meteo-Tagesprognosen für maximal 16 Tage. Ein zweiter Modellaufruf erhält
+die Daten ohne Computerfunktionen. Quellen stammen ausschließlich aus dem Adapter,
+werden getrennt angezeigt und nicht gesprochen. Ohne Wetter-Ort fragt Friday nach;
+die letzten zwei Frage-/Antwortpaare bleiben nur im Arbeitsspeicher. Fehlende Daten
+und Captchas erzeugen klare Fehler. Suchseiten werden nicht vollständig abgerufen.
 
 ## Computer Use
 
 Anschlusspunkte: `ToolExecutor.execute(_:)` und `TextOutput.insertAtCursor(_:)`.
 Umgesetzt: automatisch erkannte App-Starts per Bundle-ID, Safari-Websuche und Markdown-Notizablage.
-Offen: Terminal-Prozesse und Accessibility-basierte UI-Aktionen. Das Terminal erhält ausführbaren Pfad,
+Zusätzlich: Schreibtischwechsel und lokale Projektsuche über AX-Fenstertitel und
+sichtbare Terminal.app-Tab-Inhalte. Dafür benötigt Friday Bedienungshilfen und
+Terminal-Automation. Mehrere Treffer werden lokal zur Auswahl angezeigt. Gelesene
+Inhalte bleiben auf dem Mac; Gemini und TTS erhalten keine Ergebnisse dieser Suche.
+Offen: freie Terminal-Prozesse und allgemeine UI-Aktionen. Das Terminal erhält ausführbaren Pfad,
 Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt App- und Notizaktionen aus; freie Terminalbefehle lehnt V1 ab.
 
 ## Sprachausgabe
 
-`SystemSpeechOutput` verwendet AVFoundation und die installierte macOS-Stimme;
-dafür braucht die App keinen externen TTS-Account oder API-Key. Die Ausgabe ist
+`GeminiSpeechOutput` verwendet Gemini 3.8 Flash-Lite TTS über die Interactions-API
+und den vorhandenen privaten Gemini-Schlüssel. Deutsche Sprechweise wird separat
+als Style-Metadaten vorgegeben; der Antworttext bleibt ein wörtliches Transkript.
+Kore, Aoede und Charon sind auswählbar. WAV-Audio spielt AVAudioPlayer ab; Abbruch
+stoppt Download und Wiedergabe. Generation- und Player-IDs verhindern verspäteten
+Start bzw. Abschluss. Bei TTS-Fehlern bleibt die erhaltene Textantwort verfügbar.
+`SystemSpeechOutput` bleibt bei Ollama die lokale Alternative. Die Ausgabe ist
 standardmäßig aktiv und abschaltbar, für finale LLM-Antworten und LLM-Fehler; Computeraktionen und
 Diktat bleiben stumm. `speak` wartet auf Wiedergabeende; Stop/Abbruch beendet
 die wartende Anfrage mit `CancellationError`.
 „Noch einmal vorlesen“ verwendet den gespeicherten Antworttext ohne erneuten
 Modellaufruf. Replay bleibt während anderer Arbeit gesperrt; ein Generation-Token
 verhindert, dass alte Wiedergabe-Abschlüsse neue Befehle oder Wake beeinflussen.
-`ElevenLabsSpeechOutput` ist ein späterer Anbieter-Slot, ohne API-Aufruf oder
-Key. Alternativ kann eine lokale TTS-Engine denselben Vertrag implementieren.
+ElevenLabs ist weiterhin eine mögliche Alternative, aktuell nicht aktiviert.
+Alternativ kann eine lokale TTS-Engine denselben Vertrag implementieren.
 Schlüssel anderer optionaler Anbieter werden ebenfalls außerhalb des Repositories gespeichert.
 
 ## Thinking Orbs
@@ -90,7 +106,10 @@ Idle und Wake-Bereitschaft sind statische 2D-Ringe; Aufnahme animiert denselben 
 Ausführung nutzt working, Gemini die verschachtelnde solving-Animation.
 Das transparente Panel vergrößert sich nur für Aufnahme-Stop oder
 das kurze Hex-Transkript und schrumpft danach zurück. Der erkannte Text bleibt bis
-acht Sekunden nach Verarbeitung sichtbar; Hex liefert derzeit keine Live-Teilsätze.
+eine Sekunde nach erfolgreicher Computeraktion sichtbar, bei Fragen acht Sekunden;
+Hex liefert derzeit keine Live-Teilsätze. Die Menüleisten-Kugel ist ein statisches
+Template-Bild desselben nativen Orbs. LSUIElement entfernt das Dock-Icon; das
+Einstellungsfenster wird erst auf Wunsch erzeugt.
 
 ## Gemini Flash-Lite
 

@@ -25,6 +25,7 @@ INTENT_QUESTION = {
             "search_web": "Websuche im Browser ausführen.",
             "create_note": "Notiz mit diktiertem Inhalt speichern.",
             "switch_desktop": "Mac-Schreibtisch wechseln.",
+            "find_project": "Offenes Projekt in lokalen Fenstern oder Terminal-Tabs finden.",
             "reasoning": "Frage beantworten, erklären, rechnen oder planen.",
             "unknown": "Unklar oder andere Aktion.",
         },

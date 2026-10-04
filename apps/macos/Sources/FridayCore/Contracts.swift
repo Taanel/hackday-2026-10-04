@@ -12,17 +12,25 @@ public enum ResponseRoute: String, Sendable {
 }
 
 /// Actual provider activity; microphone phases join this when capture is connected.
-public enum AssistantPhase: Sendable, Equatable {
+public enum AssistantPhase: Sendable, Hashable, CaseIterable {
     case idle, listening, recording, transcribing, deciding, acting, reasoning, speaking, failed
+}
+
+public struct AnswerSource: Sendable, Equatable, Hashable {
+    public let title: String
+    public let url: URL
+    public init(title: String, url: URL) { self.title = title; self.url = url }
 }
 
 public struct AssistantResponse: Sendable, Equatable {
     public let text: String
     public let route: ResponseRoute
+    public let sources: [AnswerSource]
 
-    public init(text: String, route: ResponseRoute) {
+    public init(text: String, route: ResponseRoute, sources: [AnswerSource] = []) {
         self.text = text
         self.route = route
+        self.sources = sources
     }
 }
 
@@ -45,6 +53,7 @@ public enum ToolRequest: Sendable, Equatable {
     case searchSafari(query: String)
     case createNote(text: String)
     case switchDesktop(direction: DesktopDirection)
+    case findProject(query: String)
     case runExecutable(TerminalCommand)
 
     /// Structural validation only. A real executor must also enforce its own policy.
@@ -57,6 +66,8 @@ public enum ToolRequest: Sendable, Equatable {
         case .searchSafari(let query):
             return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && query.count <= 2_000
         case .switchDesktop: return true
+        case .findProject(let query):
+            return (2...200).contains(query.trimmingCharacters(in: .whitespacesAndNewlines).count)
         case .runExecutable(let command):
             return command.executablePath.hasPrefix("/") && command.workingDirectory.isFileURL
         }
@@ -124,6 +135,7 @@ public protocol ReasoningEngine: Sendable {
 
 public enum ReasoningPlan: Sendable, Equatable {
     case answer(String)
+    case researchedAnswer(text: String, sources: [AnswerSource])
     case actions([ToolRequest])
 }
 

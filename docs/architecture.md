@@ -14,7 +14,9 @@ flowchart TD
     Laya -->|komplex, unklar oder ungültig| LLM[Gemini oder Ollama]
     Tools --> Done[Sichtbarer Abschluss]
     LLM --> Reply[Antworttext]
-    Reply --> TTS[Optional: System-TTS]
+    LLM -->|search_web / weather_forecast| Research[DuckDuckGo-Snippets / Open-Meteo]
+    Research -->|Daten ohne Computerfunktionen| LLM
+    Reply --> TTS[Gemini-TTS / lokal bei Ollama]
 ```
 
 AudioInput ist der einzige Mikrofonbesitzer. Es konvertiert auf 16-kHz-Mono,
@@ -24,7 +26,7 @@ Sprache. Etwa 0,75 Sekunden Stille beenden den Befehl; spätestens nach 30 Sekun
 endet er. Bereits gepufferte Sprache zählt zur Mindestlänge von 0,8 Sekunden.
 Hex erhält PCM16-WAV-Dateien über den authentifizierten Loopback-Service.
 
-Laya wählt open_app, search_web, create_note, switch_desktop, reasoning oder unknown. Ein separater Parser
+Laya wählt open_app, search_web, create_note, switch_desktop, find_project, reasoning oder unknown. Ein separater Parser
 akzeptiert nur vollständige unterstützte Aktionen und automatisch entdeckte App-Namen.
 Die Live-Konfidenzgrenze 0.75 ist vorläufig: die ersten deutschen Inferenztests
 rechtfertigen sie für den Prototyp; weitere Kalibrierung bleibt offen. Ungültige,
@@ -47,7 +49,7 @@ Friday-Ordner gespeichert. Schreibtischwechsel senden Control + Pfeiltaste mit
 Bedienungshilfen-Zugriff. Freie Terminalbefehle, allgemeine Klick-Steuerung und
 Cursor-Diktat sind noch offen. Gemini kann höchstens drei typisierte Aktionen an
 den Router zurückgeben; dieser validiert alle vor der ersten Ausführung und nutzt
-die gleichen lokalen Tools. System-TTS liest LLM-Antworten standardmäßig vor und
+die gleichen lokalen Tools. Gemini-TTS liest Gemini-Antworten standardmäßig vor und
 wartet auf Wiedergabeende; einfache Aktionen bleiben stumm.
 
 Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
@@ -56,7 +58,8 @@ ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündel
 Idle/listening pausieren den 2D-Ring; recording animiert denselben Ring. Acting
 nutzt kreisende working-Punkte, reasoning die verschachtelnde solving-Animation. Der
 transparente Orb zeigt im Idle keinen Text. Die ViewModel hält das erkannte
-Hex-Transkript und einen abbrechbaren Acht-Sekunden-Timer. Generation-Guards
+Hex-Transkript und einen abbrechbaren Timer (Computeraktion: eine Sekunde,
+Frage: acht Sekunden). Generation-Guards
 verhindern das Löschen neuer Befehle. Das Panel passt seine Größe an den Text an,
 der rechte obere Anker bleibt gleich. Hex-Transkripte sind nach Aufnahmeende verfügbar.
 Replay verwendet ausschließlich den letzten Reasoning-Antworttext, suspendiert
@@ -72,7 +75,11 @@ Der Store liegt außerhalb von Repo/App-Bundle mit restriktiven Dateirechten.
 Beim Speichern eines neuen Schlüssels verwirft die UI den Cache, einschließlich
 eines Guards gegen ältere noch laufende Leseoperationen. Kein Keychain-Aufruf im App-Code.
 HTTP-Fehler werden sanitisiert. Kurze, vorlesbare Antworten sind der Standard;
-Fragen werden nicht automatisch in Notizen umgewandelt.
+Fragen werden nicht automatisch in Notizen umgewandelt. Zwei Frage-/Antwortpaare
+bleiben im Arbeitsspeicher, damit kurze Antworten auf Rückfragen ihren Kontext behalten.
+Recherchefunktionen sind auf eine pro Plan begrenzt und nicht mit Computeraktionen
+kombinierbar. Quellen stammen nur aus Adapterdaten. Die Folgeantwort erhält keine
+Funktionen, nur untrusted Recherche-Inhalte mit klarer System-Anweisung.
 Safari-Suchen öffnen einen URL-encoded Google-Suchlink ausdrücklich mit Safari;
 sie liefern keine LLM-Zusammenfassung der Ergebnisse. Der Mikrofon-Tap ist explizit
 Sendable, weil AVAudioEngine ihn außerhalb des MainActor aufruft.
@@ -85,3 +92,19 @@ Der Executor aktiviert laufende Apps direkt und öffnet ansonsten die tatsächli
 über Launch Services gefundene Anwendung.
 Vollständig erkannte Safari-Suchen werden vor Laya sprachlich normalisiert;
 die Klassifikation und Konfidenz bleiben echte Laya-Ausgaben.
+
+`MacProjectLocator` durchsucht höchstens 50 Apps und 20 AX-Fenster pro App mit
+kurzen AX-Timeouts und insgesamt drei Sekunden Scan-Budget. Terminal.app liefert
+höchstens 80 Tabs und die letzten 4.000 Zeichen ihres sichtbaren Textes über einen
+festen JXA-Helper mit strukturierten stdin-Argumenten. Inhalte werden nur lokal
+verglichen. Ein einzelner Treffer wird fokussiert, mehrere benötigen eine Auswahl
+per opaque ID. Vor Fokus werden Fenstertitel bzw. Fenster-ID, TTY und Projekttext
+erneut geprüft. Kein Tab-Index-Fallback, kein Shellbefehl, keine private Space-API.
+`find_project` läuft als alleinige Computeraktion; auch ein Gemini-Fallback sendet
+Ergebnisse oder Fehler nicht zurück an Gemini/TTS. Abbruch- und Generation-Guards
+verhindern die Veröffentlichung alter Treffer nach einem neueren Befehl.
+
+LSUIElement macht das gebündelte Friday zur Menüleisten-App ohne Dock-Icon.
+MenuBarExtra verwendet ein statisches Template-Rendering des gepunkteten Kugel-Orbs.
+Das Einstellungsfenster wird im AppDelegate erst beim Öffnen erzeugt und danach
+wiederverwendet. Beim Start entsteht nur das transparente Overlay.

@@ -53,6 +53,12 @@ public struct ActionArgumentParser: Sendable {
     public func parse(intent: String, text: String) -> ToolRequest? {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch intent {
+        case "find_project":
+            guard let query = capture(#"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:finde|such|suche|zeige|zeig|wo)\b.*?\b(?:projekt|project)\s+[„\"']?(.+?)[”\"']?(?:\s+(?:offen|geöffnet|raus)(?:\s+.*)?)?[.!?]*$"#, text),
+                  text.range(of: #"\b(?:safari|google|web|internet)\b"#, options: [.regularExpression, .caseInsensitive]) == nil,
+                  query.range(of: #"\b(?:und|dann|danach)\s+(?:öffne|lösche|starte|mach|schließe)\b"#, options: [.regularExpression, .caseInsensitive]) == nil,
+                  ToolRequest.findProject(query: query).hasValidArguments else { return nil }
+            return .findProject(query: query)
         case "search_web":
             // Opening Safari is already part of searchSafari. Treat this
             // common spoken combination as one action, keeping only the query.
