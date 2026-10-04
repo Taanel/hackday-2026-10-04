@@ -1,0 +1,145 @@
+{
+  "name": "friday-tool",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "friday-tool",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "friday-tool"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c0000000-0000-4000-8000-000000000001",
+                    "leftValue": "={{ $json.body.tool }}",
+                    "rightValue": "createNote",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "createNote"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d0000000-0000-4000-8000-000000000001",
+              "name": "line",
+              "value": "=- {{ $now.format('yyyy-MM-dd HH:mm') }} {{ $('Webhook').item.json.body.text }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Notizzeile bauen",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, -100]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "line",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "In Datei umwandeln",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [740, -100]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/Users/thanh/ThanhCodes/hackday-2026-10-04/n8n/friday-notes.md",
+        "dataPropertyName": "data",
+        "options": { "append": true }
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "An friday-notes.md anhängen",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [980, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Notiz gespeichert: ' + $('Webhook').item.json.body.text }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Antwort OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1220, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unbekanntes Tool: ' + $('Webhook').item.json.body.tool }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Antwort unbekannt",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [500, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Switch", "type": "main", "index": 0 }]]
+    },
+    "Switch": {
+      "main": [
+        [{ "node": "Notizzeile bauen", "type": "main", "index": 0 }],
+        [{ "node": "Antwort unbekannt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notizzeile bauen": {
+      "main": [[{ "node": "In Datei umwandeln", "type": "main", "index": 0 }]]
+    },
+    "In Datei umwandeln": {
+      "main": [[{ "node": "An friday-notes.md anhängen", "type": "main", "index": 0 }]]
+    },
+    "An friday-notes.md anhängen": {
+      "main": [[{ "node": "Antwort OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
