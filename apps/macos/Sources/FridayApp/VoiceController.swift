@@ -2,12 +2,27 @@ import Foundation
 import FridayCore
 import FridayAdapters
 
+@MainActor protocol VoiceAudioInput: AnyObject {
+    var onFrames: (([Float]) -> Void)? { get set }
+    var onRecordingEnded: ((URL) -> Void)? { get set }
+    var onError: ((any Error) -> Void)? { get set }
+    var isRecording: Bool { get }
+    var totalSamples: Int { get }
+    func start() async throws
+    func stop()
+    func beginRecording(fromSample: Int?)
+    func finishRecording() throws -> URL?
+    func cancelRecording()
+}
+extension AudioInput: VoiceAudioInput {}
+
 /// Owns listening/capture. Processing belongs to the ViewModel, which rearms after completion.
 @MainActor final class VoiceController {
     var onPhase: ((AssistantPhase) -> Void)?
     var onCommand: ((URL, Bool) -> Void)?
     var onError: ((any Error) -> Void)?
-    private let audio = AudioInput()
+    var onWakeRecovery: (() -> Void)?
+    private let audio: any VoiceAudioInput
     private let wake: MoonshineWakeWordDetector
     private var enabled = false
     private var closed = false
@@ -15,13 +30,16 @@ import FridayAdapters
     private var wakeOrigin = 0
     private var generation = UUID()
     private var wakeGeneration = 0
+    private var wakeSession = UUID()
     private var wakeTriggered = false
     private var frameContinuation: AsyncStream<[Float]>.Continuation?
     private var feedTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var recovering = false
+    private var recoveries: [Date] = []
 
-    init(wake: MoonshineWakeWordDetector) {
-        self.wake = wake
+    init(wake: MoonshineWakeWordDetector, audio: any VoiceAudioInput = AudioInput()) {
+        self.wake = wake; self.audio = audio
         audio.onFrames = { [weak self] samples in
             guard let self, self.awaitingWake else { return }
             self.frameContinuation?.yield(samples)
@@ -50,7 +68,9 @@ import FridayAdapters
                     guard !Task.isCancelled else { return }
                     guard let detection = try? JSONDecoder().decode(WakeDetection.self, from: data) else { continue }
                     if detection.type == "error", let error = detection.error {
-                        self?.onError?(AdapterError.unavailable(error))
+                        guard let self, self.awaitingWake, detection.transportSession == self.wakeSession,
+                              detection.generation == nil || detection.generation == self.wakeGeneration else { continue }
+                        await self.recoverWake(AdapterError.unavailable(error))
                         continue
                     }
                     await self?.detected(detection)
@@ -73,8 +93,10 @@ import FridayAdapters
         try Task.checkCancellation()
         guard !closed else { throw CancellationError() }
         guard enabled, !audio.isRecording else { if !audio.isRecording { audio.stop() }; return }
+        try await audio.start()
         try await wake.start()
         wakeGeneration = try await wake.resume()
+        wakeSession = await wake.sessionID
         let (frames, continuation) = AsyncStream<[Float]>.makeStream(bufferingPolicy: .bufferingNewest(80))
         frameContinuation?.finish(); feedTask?.cancel()
         frameContinuation = continuation
@@ -84,16 +106,57 @@ import FridayAdapters
             for await samples in frames {
                 guard let self, !Task.isCancelled, self.awaitingWake else { return }
                 do { try await self.wake.feed(samples) }
-                catch { if !Task.isCancelled { self.onError?(error) }; return }
+                catch {
+                    if !Task.isCancelled { Task { await self.recoverWake(error) } }
+                    return
+                }
             }
         }
         onPhase?(.listening)
     }
 
+    private func recoverWake(_ error: any Error) async {
+        guard enabled, !closed, awaitingWake, !recovering else { return }
+        recovering = true
+        defer { recovering = false }
+        recoveries = recoveries.filter { Date().timeIntervalSince($0) < 60 }
+        guard recoveries.count < 3 else {
+            enabled = false
+            await suspend(); audio.stop(); onError?(error)
+            return
+        }
+        recoveries.append(Date())
+        onWakeRecovery?()
+        await suspend()
+        // Only restart the wake helper. Hex and Laya stay warm.
+        await wake.stop()
+        do {
+            try await Task.sleep(for: .milliseconds(200))
+            guard enabled, !closed else { return }
+            try await rearm()
+        } catch {
+            guard enabled, !closed else { return }
+            enabled = false; audio.stop(); onError?(error)
+        }
+    }
+
+    func enrollWake(files: [URL]) async throws {
+        try await wake.start()
+        try await wake.enroll(files: files)
+    }
+
+    func clearWakeProfile() async throws {
+        await suspend()
+        try await wake.start()
+        try await wake.clearProfile()
+    }
+
     private func detected(_ detection: WakeDetection) async {
         guard detection.type == "wake", detection.generation == wakeGeneration,
+              detection.transportSession == wakeSession,
               enabled, awaitingWake, !audio.isRecording else { return }
         awaitingWake = false
+        recoveries.removeAll()
         let from = detection.startSample.map { wakeOrigin + $0 } ?? max(0, audio.totalSamples - 32_000)
         wakeTriggered = true
         audio.beginRecording(fromSample: from)
@@ -110,7 +173,7 @@ import FridayAdapters
             try Task.checkCancellation()
             guard !closed else { throw CancellationError() }
             wakeTriggered = false
-            audio.beginRecording()
+            audio.beginRecording(fromSample: nil)
             onPhase?(.recording)
         } catch {
             audio.stop()

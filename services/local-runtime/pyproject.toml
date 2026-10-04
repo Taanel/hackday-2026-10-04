@@ -11,6 +11,7 @@ dependencies = [
   "laya-coreml==0.2.0",
   "moonshine-voice==0.1.5",
   "huggingface-hub>=0.33,<2",
+  "numpy>=1.26,<3",
 ]
 
 [dependency-groups]

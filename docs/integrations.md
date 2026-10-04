@@ -17,11 +17,22 @@ Das Setup installiert Whisper large-v3-turbo für Deutsch; Runtime-Downloads sin
 
 ## „Hey Friday“
 
+Optionales lokales Anlernen: dreimal die Phrase aufnehmen. Der Worker speichert
+normalisierte spektrale Merkmale in `~/Library/Application Support/Friday/VoiceProfile/profile.json`.
+Temporäre WAVs werden anschließend gelöscht. Subsequence-DTW sucht das Klangmuster
+in rollierenden PCM-Fenstern; Lautstärke und Sprechtempo dürfen sich ändern.
+Das ist eine Testfunktion, keine Sprecheridentifikation. Mit einem Profil ersetzt
+sie Moonshine für die Aktivierung; „Zurücksetzen“ wechselt zur Standarderkennung.
+
 Moonshine Tiny Streaming verarbeitet kontinuierlich lokale AudioInput-Samples
 und meldet die vollständige Phrase „Hey Friday“. Die englischen offenen Tiny-Gewichte
 werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der nativen App.
 Abnahme: „Hey Friday“ aktiviert den Assistenten, Stille/andere Phrasen nicht;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
+Wake-Fehler starten nur den Wake-Helper neu. Transport-Sitzung und Stream-Generation
+verhindern, dass alte Ereignisse nach einem Neustart erneut aktivieren. Audiosamples
+werden vor dem IPC auf gültiges PCM begrenzt. Hex wird vor „Bereit“ einmal geladen
+und vorgewärmt; seine Modellprüfung läuft nicht bei jedem Befehl erneut.
 
 ## Laya: schnelle Entscheidungen
 

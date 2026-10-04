@@ -4,6 +4,7 @@ public actor HexService {
     private let worker: JSONLineProcess
     private var endpoint: URL?
     private var token: String?
+    private var prepared = false
     public let model = "whisper_large_v3_turbo"
 
     public init(configuration: RuntimeConfiguration) {
@@ -13,11 +14,14 @@ public actor HexService {
         )
     }
 
+    init(worker: JSONLineProcess) { self.worker = worker }
+
     private struct Ready: Decodable { let url: String; let token: String; let apiVersion: String }
     private struct Model: Decodable { let id: String; let installed: Bool; let verified: Bool }
     private struct Transcript: Decodable { let transcript: String }
 
     public func start() async throws {
+        if prepared, await worker.isReady { return }
         let ready = try JSONDecoder().decode(Ready.self, from: await worker.start())
         guard ready.apiVersion == "2", let url = URL(string: ready.url), url.host == "127.0.0.1", url.scheme == "http" else {
             await stop()
@@ -31,6 +35,25 @@ public actor HexService {
         guard models.contains(where: { $0.id == model && $0.installed && $0.verified }) else {
             throw AdapterError.unavailable("Das deutsche Hex-Modell fehlt. Bitte das lokale Setup abschließen.")
         }
+        // The models endpoint only verifies the file. Prepare loads and warms
+        // Whisper before the microphone UI becomes ready, once per service.
+        var warmup = try makeRequest(path: "models/\(model)/prepare", query: [URLQueryItem(name: "language", value: "de")])
+        warmup.httpMethod = "POST"
+        warmup.timeoutInterval = 120
+        warmup.setValue("0", forHTTPHeaderField: "Content-Length")
+        let (progress, warmupResponse) = try await URLSession.shared.data(for: warmup)
+        try check(warmupResponse)
+        struct Event: Decodable { let type: String }
+        let events = String(decoding: progress, as: UTF8.self).split(separator: "\n").compactMap { line -> Event? in
+            guard line.hasPrefix("data:") else { return nil }
+            return try? JSONDecoder().decode(Event.self, from: Data(line.dropFirst(5).utf8))
+        }
+        guard events.last?.type == "ok" else {
+            await stop()
+            throw AdapterError.unavailable("Hex konnte das Sprachmodell nicht vorladen. Bitte erneut laden.")
+        }
+        try Task.checkCancellation()
+        prepared = true
     }
 
     public func transcribe(audioFile: URL) async throws -> String {
@@ -77,6 +100,7 @@ public actor HexService {
     }
 
     public func stop() async {
+        prepared = false
         endpoint = nil; token = nil
         await worker.stop()
     }

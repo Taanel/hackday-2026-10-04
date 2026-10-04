@@ -22,11 +22,15 @@ public struct ActionArgumentParser: Sendable {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch intent {
         case "search_web":
-            guard let query = capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:nach\s+)?(.+?)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)[.!?]*$"#, text)
-                ?? capture(#"^(?:bitte\s+)?(?:suche|such)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)\s+nach\s+(.+?)[.!?]*$"#, text),
+            // Opening Safari is already part of searchSafari. Treat this
+            // common spoken combination as one action, keeping only the query.
+            guard let query = capture(#"^(?:bitte\s+)?(?:öffne|oeffne|starte|open)\s+(?:bitte\s+)?(?:den\s+)?(?:safari|browser)\s*[,;]?\s+(?:und\s+(?:dann\s+)?|dann\s+)(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)[.!?]*$"#, text)
+                ?? capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)[.!?]*$"#, text)
+                ?? capture(#"^(?:bitte\s+)?(?:suche|such)\s+(?:bitte\s+)?(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)\s+nach\s+(.+?)[.!?]*$"#, text)
+                ?? capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)[.!?]*$"#, text),
                   !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   query.count <= 2_000,
-                  query.range(of: #"\b(?:und|dann|danach)\s+(?:bitte\s+)?(?:öffne|starte|lösche|schließe|mach|erstelle|schreibe|führe)\b"#, options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
+                  query.range(of: #"\b(?:und|dann|danach)\s+(?:bitte\s+)?(?:öffne|starte|lösche|schließe|mach|erstelle|schreibe|führe|suche|google)\b"#, options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
             return .searchSafari(query: query)
         case "open_app":
             guard let name = capture(

@@ -39,7 +39,7 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public func worker(_ mode: String) -> JSONLineProcess {
         JSONLineProcess(
             executable: pythonExecutable,
-            arguments: ["-u", "-m", "friday_runtime", mode, "--model-dir", mode == "laya" ? layaModelDirectory : wakeModelDirectory],
+            arguments: ["-B", "-u", "-m", "friday_runtime", mode, "--model-dir", mode == "laya" ? layaModelDirectory : wakeModelDirectory],
             directory: workerDirectory,
             environment: ["HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false", "PYTHONUNBUFFERED": "1"]
         )

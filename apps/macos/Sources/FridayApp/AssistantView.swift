@@ -52,6 +52,21 @@ struct AssistantView: View {
                 Text(model.wakeEnabled ? "Mikrofon aktiv · Erkennung läuft lokal." : "Mikrofon startet beim Aktivieren oder über „Sprechen“.")
                     .font(.caption).foregroundStyle(.secondary)
 
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Button(model.wakeTrainingCount > 0 ? "Sprachprobe \(model.wakeTrainingCount + 1)/3 aufnehmen" : "Hey Friday anlernen", systemImage: "waveform") {
+                            model.startWakeTraining()
+                        }
+                        .disabled(!model.isReady || model.isWorking)
+                        if model.personalWakeReady || model.wakeTrainingCount > 0 {
+                            Button("Zurücksetzen") { model.resetPersonalWake() }
+                                .disabled(model.isWorking)
+                        }
+                    }
+                    Text(model.personalWakeReady ? "Persönliches Klangmuster aktiv · lokal auf diesem Mac." : "Dreimal nur „Hey Friday“ einsprechen. Klangmuster-Erkennung ist eine Testfunktion.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
                 Picker("Modus", selection: $model.mode) {
                     Text("Assistent").tag(InputMode.assistant)
                     Text("Diktat-Vorschau").tag(InputMode.dictation)

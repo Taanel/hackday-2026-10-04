@@ -68,6 +68,7 @@ public actor JSONLineProcess {
     }
 
     public var isReady: Bool { ready != nil }
+    public var sessionID: UUID { generation }
 
     private func launch() async throws -> Data {
         try Task.checkCancellation()
@@ -123,7 +124,12 @@ public actor JSONLineProcess {
             if let error = header.error { waiter.resume(throwing: AdapterError.unavailable(error)) }
             else { waiter.resume(returning: line) }
         } else {
-            eventContinuation.yield(line)
+            // Queued events can outlive a helper restart. Attach the transport
+            // epoch; generation counters inside a new Python process restart.
+            if var event = try? JSONSerialization.jsonObject(with: line) as? [String: Any] {
+                event["transportSession"] = token.uuidString
+                if let tagged = try? JSONSerialization.data(withJSONObject: event) { eventContinuation.yield(tagged) }
+            }
         }
     }
 

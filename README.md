@@ -37,8 +37,15 @@ Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antwo
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
 2. „Hey Friday“ aktivieren und macOS-Mikrofonzugriff erlauben.
+   Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
+   anklicken und dreimal nur die Phrase einsprechen, jeweils kurz still sein.
+   Nach jeder Probe den Button für die nächste Aufnahme verwenden. Das persönliche
+   Klangmuster wird lokal gespeichert und anschließend automatisch aktiviert.
+   „Zurücksetzen“ entfernt das Profil. Die Anlernfunktion ist ein Prototyp;
+   ihre Zuverlässigkeit mit der eigenen Stimme muss live geprüft werden.
 3. „Hey Friday, öffne Safari“ sagen; eine kurze Sprechpause beendet die Aufnahme.
 4. „Hey Friday, suche nach test auf Safari“ öffnet eine Google-Suche in Safari.
+   Auch „Öffne Safari und suche nach Test“ und „Suche nach Test“ funktionieren als direkte Safari-Aktion.
 5. „Hey Friday, mach eine Notiz: Milch kaufen“ probieren. „Notizen zeigen“ öffnet den Ordner.
 
 Alternativ „Sprechen“ drücken oder einen Befehl als Text eingeben. „Abbrechen“
@@ -55,7 +62,7 @@ App-Starts und Notizen bleiben stumm.
 
 | Funktion | Erste Version |
 | --- | --- |
-| Wake | Moonshine Tiny Streaming, lokaler englischer Detector für „Hey Friday“ |
+| Wake | Persönliche lokale Klangmuster (3 Sprachproben, DTW), sonst Moonshine Tiny Streaming |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus fünf Intents |
 | Computer Use | NSWorkspace-App-Start, Safari-Suche, lokale Markdown-Notizen |
@@ -82,8 +89,10 @@ mit der `.app` gebündelt. Modelle und Python-Umgebung bleiben außerhalb des Re
 Geprüft: Swift-/Python-Tests, echte lokale Laya-Inferenz, synthetische Wake-Aufnahme, Audio-Callback auf Hintergrundthread,
 deutsches WAV → Hex → Laya und tatsächliches Speichern einer Notiz sowie App-Build/Signatur.
 Mikrofon, individuelle Aussprache und sichtbarer App-Start benötigen einen Live-Test auf dem Mac.
-Die englische synthetische Wake-Phrase wurde erkannt; die deutsche Anna-Stimme
-löste im zweiten Test nicht aus. Bei fehlender Aktivierung „Sprechen“ verwenden.
+Die Moonshine-Standarderkennung hat Schwierigkeiten mit der deutschen Anna-Stimme.
+Mit drei persönlichen Anna-Sprachproben erkennt der neue Klangmuster-Prototyp
+auch „Hey Friday“ direkt vor einem Befehl; getestete andere Sätze lösen nicht aus.
+Bei fehlender Aktivierung neu anlernen oder „Sprechen“ verwenden.
 Die Entwicklungs-App ist lokal ad-hoc signiert und kein notarisiertes Release.
 
 [Architektur](docs/architecture.md) · [Integrationen](docs/integrations.md) ·

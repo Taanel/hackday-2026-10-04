@@ -154,7 +154,7 @@ def test_worker_wire_starts_ready_and_shuts_down_at_eof(tmp_path):
         return transcriber, object
 
     source = io.StringIO(json.dumps({"op": "audio", "pcm": base64.b64encode(b"\0" * 1600).decode()}) + '\n{"op":"pause"}\n{"op":"resume"}\n{"op":"reset"}\n')
-    run_wake(tmp_path, source, output.append, create=create)
+    run_wake(tmp_path, source, output.append, create=create, profile_path=tmp_path / "profile.json")
     assert loaded == [str(tmp_path)]
     assert output == [{"type": "ready", "provider": "wake", "generation": 1}]
     assert len(transcriber.streams) == 3
@@ -177,7 +177,7 @@ def test_control_acknowledgments_follow_operations_and_report_generation(tmp_pat
         output.append(message)
 
     source = io.StringIO("\n".join(json.dumps({"id": identifier, "op": operation}) for identifier, operation in zip(identifiers, ["pause", "resume", "reset"])) + "\n")
-    run_wake(tmp_path, source, emit, create=lambda path: (transcriber, object))
+    run_wake(tmp_path, source, emit, create=lambda path: (transcriber, object), profile_path=tmp_path / "profile.json")
     assert output == [
         {"type": "ready", "provider": "wake", "generation": 1},
         {"id": identifiers[0], "generation": 1},

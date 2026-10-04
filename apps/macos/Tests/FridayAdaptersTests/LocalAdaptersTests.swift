@@ -3,6 +3,72 @@ import Testing
 import FridayCore
 @testable import FridayAdapters
 
+@Test func hexPreparesOnceAndReusesTheWarmService() async throws {
+    let code = #"""
+import sys,json,threading,http.server
+counts={'models':0,'prepare':0,'transcriptions':0}
+class Handler(http.server.BaseHTTPRequestHandler):
+ def log_message(self,*args): pass
+ def do_GET(self):
+  counts['models']+=1; self.send_response(200); self.end_headers(); self.wfile.write(b'[{"id":"whisper_large_v3_turbo","installed":true,"verified":true}]')
+ def do_POST(self):
+  self.rfile.read(int(self.headers.get('Content-Length','0'))); self.send_response(200); self.end_headers()
+  if '/prepare' in self.path: counts['prepare']+=1; self.wfile.write(b'data: {"type":"loading"}\n\ndata: {"type":"ok"}\n\n')
+  else: counts['transcriptions']+=1; self.wfile.write(b'{"transcript":"test"}')
+server=http.server.HTTPServer(('127.0.0.1',0),Handler)
+threading.Thread(target=server.serve_forever,daemon=True).start()
+print(json.dumps({'type':'ready','url':f'http://127.0.0.1:{server.server_port}','token':'test-token','apiVersion':'2'}),flush=True)
+for line in sys.stdin:
+ r=json.loads(line); print(json.dumps({'id':r['id'],**counts}),flush=True)
+"""#
+    let worker = JSONLineProcess(executable: "/usr/bin/python3", arguments: ["-u", "-c", code])
+    let hex = HexService(worker: worker)
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+    defer { try? FileManager.default.removeItem(at: file) }
+    try WAVEncoder.encode(Array(repeating: 0, count: 1600)).write(to: file)
+    try await hex.start()
+    try await hex.start()
+    #expect(try await hex.transcribe(audioFile: file) == "test")
+    let result = try await worker.request(Data(#"{"id":"counts"}"#.utf8), id: "counts")
+    await hex.stop()
+    struct Counts: Decodable { let models: Int; let prepare: Int; let transcriptions: Int }
+    let counts = try JSONDecoder().decode(Counts.self, from: result)
+    #expect(counts.models == 1)
+    #expect(counts.prepare == 1)
+    #expect(counts.transcriptions == 1)
+}
+
+@Test(arguments: ["Öffne Safari und suche nach test", "Öffne Safari und suche nach Test.", "Bitte öffne Safari und suche nach roten Schuhen", "Starte Safari und google Test & Beispiel", "Suche nach test", "Suche bitte in Safari nach test"])
+func naturalSafariSearchAlsoOpensTheBrowser(text: String) {
+    #expect(ActionArgumentParser().parse(intent: "search_web", text: text) != nil)
+}
+
+@Test func openingAndSearchingKeepsOnlyTheSearchTerms() {
+    #expect(ActionArgumentParser().parse(intent: "search_web", text: "Öffne Safari und suche nach test") == .searchSafari(query: "test"))
+    #expect(ActionArgumentParser().parse(intent: "search_web", text: "Öffne Safari und suche nach test und öffne Terminal") == nil)
+}
+
+@Test func microphonePCMIsBoundedBeforeSendingToWake() async throws {
+    let code = #"""
+import sys,json,base64,struct,math; print(json.dumps({'type':'ready'}),flush=True); valid=True; count=0
+for line in sys.stdin:
+ r=json.loads(line)
+ if r.get('op')=='audio':
+  raw=base64.b64decode(r['pcm']); v=struct.unpack('<'+'f'*(len(raw)//4),raw); count+=len(v); valid=valid and len(v)<=16000 and all(math.isfinite(s) and abs(s)<=1 for s in v)
+ elif 'id' in r: print(json.dumps({'id':r['id'],'valid':valid,'count':count}),flush=True)
+"""#
+    let worker = JSONLineProcess(executable: "/usr/bin/python3", arguments: ["-u", "-c", code])
+    let wake = MoonshineWakeWordDetector(worker: worker)
+    try await wake.start()
+    try await wake.feed([.nan, .infinity, -1.1, 1.1] + Array(repeating: 0.0, count: 20_000))
+    let data = try await worker.request(Data(#"{"id":"check"}"#.utf8), id: "check")
+    await worker.stop()
+    struct Reply: Decodable { let valid: Bool; let count: Int }
+    let reply = try JSONDecoder().decode(Reply.self, from: data)
+    #expect(reply.valid)
+    #expect(reply.count == 20_004)
+}
+
 @Test(arguments: ["Suche nach test auf Safari", "Suche in Safari nach roten Schuhen", "Suche auf Safari nach Test & Beispiel"])
 func safariSearchCommandsUseADirectAction(text: String) {
     #expect(ActionArgumentParser().parse(intent: "search_web", text: text) != nil)

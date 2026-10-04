@@ -166,6 +166,7 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "laya-coreml" },
     { name = "moonshine-voice" },
+    { name = "numpy" },
 ]
 
 [package.dev-dependencies]
@@ -178,6 +179,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.33,<2" },
     { name = "laya-coreml", specifier = "==0.2.0" },
     { name = "moonshine-voice", specifier = "==0.1.5" },
+    { name = "numpy", specifier = ">=1.26,<3" },
 ]
 
 [package.metadata.requires-dev]

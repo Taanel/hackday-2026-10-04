@@ -17,6 +17,8 @@ done
 if [ -d "$repo_root/services/local-runtime/src/friday_runtime" ]; then
     mkdir -p "$app_path/Contents/Resources/LocalRuntime"
     cp -R "$repo_root/services/local-runtime/src/friday_runtime" "$app_path/Contents/Resources/LocalRuntime/"
+    # Python workers run with -B. Generated caches must not mutate signed resources.
+    rm -rf "$app_path/Contents/Resources/LocalRuntime/friday_runtime/__pycache__"
 fi
 plutil -lint "$app_path/Contents/Info.plist"
 # Finder metadata on copied resources can invalidate a macOS code signature.

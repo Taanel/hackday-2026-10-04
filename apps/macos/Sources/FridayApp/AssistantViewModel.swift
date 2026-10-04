@@ -13,6 +13,10 @@ import FridayAdapters
     @Published private(set) var isReady = true
     @Published private(set) var wakeEnabled = false
     @Published private(set) var isRecording = false
+    @Published private(set) var wakeTrainingCount = 0
+    @Published private(set) var isTrainingWake = false
+    @Published private(set) var personalWakeReady = FileManager.default.fileExists(atPath:
+        RuntimeConfiguration.supportDirectory.appendingPathComponent("VoiceProfile/profile.json").path)
 
     private let router: AssistantRouter
     private let speech: any SpeechOutput
@@ -25,6 +29,7 @@ import FridayAdapters
     private var isLive = false
     private var reasoningLabel = "LLM"
     private var shuttingDown = false
+    private var wakeTrainingFiles: [URL] = []
     private(set) var task: Task<Void, Never>?
 
     init(
@@ -75,6 +80,7 @@ import FridayAdapters
                 else if phase == .recording { model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme." }
             }
             voice.onCommand = { [weak model] file, stripWake in model?.processRecording(file, stripWake: stripWake) }
+            voice.onWakeRecovery = { [weak model] in model?.status = "Wake-Erkennung startet neu …" }
             voice.onError = { [weak model] error in
                 guard let model else { return }
                 model.wakeEnabled = false
@@ -117,9 +123,80 @@ import FridayAdapters
     }
 
     private func processRecording(_ file: URL, stripWake: Bool) {
+        if isTrainingWake { processWakeTraining(file); return }
         guard task == nil, isReady else { try? FileManager.default.removeItem(at: file); return }
         isRecording = false
         run(text: nil, mode: mode, audioFile: file, stripWake: stripWake)
+    }
+
+    func startWakeTraining() {
+        guard !shuttingDown, isReady, !isWorking, voice != nil else { return }
+        isTrainingWake = true; isWorking = true; response = ""
+        microphoneTask = Task {
+            do {
+                try await voice?.manualRecording()
+                status = "Probe \(wakeTrainingCount + 1)/3: Sag nur „Hey Friday“, dann kurz warten."
+            } catch {
+                isTrainingWake = false; isWorking = false; phase = .failed
+                response = error.localizedDescription
+            }
+        }
+    }
+
+    private func processWakeTraining(_ file: URL) {
+        let token = UUID(); generation = token
+        isRecording = false; isTrainingWake = false
+        wakeTrainingFiles.append(file); wakeTrainingCount = wakeTrainingFiles.count
+        isWorking = true
+        task = Task {
+            defer { if generation == token { isWorking = false; task = nil } }
+            do {
+                if wakeTrainingFiles.count == 3 {
+                    status = "Persönliches Klangmuster wird gespeichert …"
+                    try await voice?.enrollWake(files: wakeTrainingFiles)
+                    try Task.checkCancellation()
+                    guard generation == token, !shuttingDown else { throw CancellationError() }
+                    clearTrainingFiles()
+                    personalWakeReady = true
+                    wakeEnabled = true
+                    try await voice?.setEnabled(true)
+                    response = "Persönliches Hey Friday ist aktiv. Sag jetzt „Hey Friday, öffne Safari und suche nach Test“."
+                } else {
+                    try await voice?.rearm()
+                    try Task.checkCancellation()
+                    guard generation == token, !shuttingDown else { throw CancellationError() }
+                    phase = wakeEnabled ? .listening : .idle
+                    status = "Probe \(wakeTrainingCount)/3 aufgenommen. Nächste Sprachprobe starten."
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard generation == token, !shuttingDown else { return }
+                clearTrainingFiles()
+                phase = .failed; status = "Anlernen bitte wiederholen"
+                response = error.localizedDescription
+                try? await voice?.rearm()
+            }
+        }
+    }
+
+    private func clearTrainingFiles() {
+        for file in wakeTrainingFiles { try? FileManager.default.removeItem(at: file) }
+        wakeTrainingFiles.removeAll(); wakeTrainingCount = 0
+    }
+
+    func resetPersonalWake() {
+        guard !shuttingDown, !isWorking, voice != nil else { return }
+        isWorking = true
+        task = Task {
+            defer { isWorking = false; task = nil }
+            do {
+                try await voice?.clearWakeProfile()
+                clearTrainingFiles(); personalWakeReady = false
+                try await voice?.rearm()
+                status = "Persönliches Klangmuster gelöscht"
+            } catch { response = error.localizedDescription; phase = .failed }
+        }
     }
 
     private func run(text: String?, mode submittedMode: InputMode, audioFile: URL? = nil, stripWake: Bool = false) {
@@ -196,6 +273,8 @@ import FridayAdapters
         task?.cancel()
         microphoneTask?.cancel()
         speech.stop()
+        isTrainingWake = false
+        clearTrainingFiles()
         if voice != nil {
             let token = UUID(); generation = token
             isWorking = true
@@ -239,11 +318,12 @@ import FridayAdapters
 
     func stopRecording() {
         do { try voice?.finishRecording() }
-        catch { isWorking = false; isRecording = false; phase = .failed; response = error.localizedDescription }
+        catch { isWorking = false; isRecording = false; isTrainingWake = false; phase = .failed; response = error.localizedDescription }
     }
 
     func shutdown() async {
         shuttingDown = true
+        clearTrainingFiles()
         generation = UUID()
         startupTask?.cancel(); microphoneTask?.cancel(); task?.cancel(); speech.stop()
         await voice?.shutdown(); await hex?.stop(); await layaWorker?.stop()
