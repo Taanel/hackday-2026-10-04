@@ -37,6 +37,8 @@ public struct PreviewToolExecutor: ToolExecutor {
             "Aktionsvorschau: Programm \(identifier) öffnen."
         case .createNote(let text):
             "Aktionsvorschau: Notiz anlegen: \(text)"
+        case .searchSafari(let query):
+            "Aktionsvorschau: Safari-Suche nach \(query)"
         case .runExecutable(let command):
             "Aktionsvorschau: \(command.executablePath) mit \(command.arguments.count) Argumenten ausführen."
         }

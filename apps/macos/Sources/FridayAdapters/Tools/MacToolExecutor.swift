@@ -11,10 +11,11 @@ public struct MacToolExecutor: ToolExecutor {
         try Task.checkCancellation()
         switch request {
         case .openApplication(let identifier):
-            guard Set(ActionArgumentParser.applications.values).contains(identifier) else {
-                throw AdapterError.unavailable("Dieses Programm gehört noch nicht zu den unterstützten Aktionen.")
-            }
+            guard request.hasValidArguments else { throw AdapterError.unavailable("Ungültiger Programmname.") }
             return try await Self.open(identifier)
+        case .searchSafari(let query):
+            let url = try Self.safariSearchURL(query: query)
+            return try await Self.searchSafari(url: url, query: query)
         case .createNote(let text):
             guard request.hasValidArguments else { throw AdapterError.unavailable("Die Notiz ist leer.") }
             try FileManager.default.createDirectory(at: notesDirectory, withIntermediateDirectories: true)
@@ -24,6 +25,27 @@ public struct MacToolExecutor: ToolExecutor {
         case .runExecutable:
             throw AdapterError.unavailable("Freie Terminalbefehle sind in V1 noch nicht eingerichtet.")
         }
+    }
+
+    static func safariSearchURL(query: String) throws -> URL {
+        guard ToolRequest.searchSafari(query: query).hasValidArguments else {
+            throw AdapterError.unavailable("Bitte einen Suchbegriff für Safari angeben.")
+        }
+        var components = URLComponents(string: "https://www.google.com/search")!
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = components.url else { throw AdapterError.invalidResponse("Ungültige Safari-Suche.") }
+        return url
+    }
+
+    @MainActor private static func searchSafari(url: URL, query: String) async throws -> String {
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") else {
+            throw AdapterError.unavailable("Safari ist nicht installiert.")
+        }
+        try Task.checkCancellation()
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        _ = try await NSWorkspace.shared.open([url], withApplicationAt: app, configuration: config)
+        return "Safari-Suche geöffnet: \(query)"
     }
 
     @MainActor private static func open(_ identifier: String) async throws -> String {

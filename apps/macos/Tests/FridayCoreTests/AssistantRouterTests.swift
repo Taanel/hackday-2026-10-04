@@ -56,6 +56,19 @@ private actor ToolSpy: ToolExecutor {
     #expect(await reasoning.calls == 0)
 }
 
+@Test func safariSearchSkipsTheLLM() async throws {
+    let request = ToolRequest.searchSafari(query: "test")
+    let reasoning = ReasoningSpy()
+    let tools = ToolSpy()
+    let router = AssistantRouter(
+        decisions: DecisionStub(.decision(FastDecision(intent: .action(request), confidence: 0.95))),
+        reasoning: reasoning, tools: tools
+    )
+    #expect(try await router.handle("Suche nach test auf Safari").route == .fastAction)
+    #expect(await reasoning.calls == 0)
+    #expect(await tools.requests == [request])
+}
+
 @Test(arguments: [0.2, Double.nan, Double.infinity, 1.1, -0.1])
 func uncertainOrInvalidConfidenceFallsBack(confidence: Double) async throws {
     let decisions = DecisionStub(.decision(FastDecision(intent: .action(.createNote(text: "Milch")), confidence: confidence)))

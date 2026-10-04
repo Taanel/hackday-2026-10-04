@@ -15,16 +15,17 @@ from .protocol import (
 )
 
 # Descriptions are part of the model question, rather than postprocessing rules.
-# Keep the four options distinct and short enough for the model's head budget.
+# Keep options distinct and short enough for the model's head budget.
 INTENT_QUESTION = {
     "intent": {
         "type": "choice",
         "instructions": "Welche einzelne Absicht hat die deutsche Nutzeranfrage? Wähle die passendste Aktion.",
         "criteria": {
-            "open_app": "Eine genannte Mac-App öffnen oder starten, z. B. Öffne Safari.",
-            "create_note": "Eine Notiz mit diktiertem Inhalt erstellen oder speichern, z. B. Notiere den Termin.",
-            "reasoning": "Eine Frage beantworten, etwas erklären, planen, berechnen oder ausführlich analysieren.",
-            "unknown": "Unklar, keine Anfrage, mehrere Aktionen oder keine der unterstützten Absichten.",
+            "open_app": "Genannte Mac-App öffnen/starten, z. B. Öffne Safari.",
+            "search_web": "Web-Suche im Browser, z. B. Suche nach Test auf Safari.",
+            "create_note": "Notiz mit diktiertem Inhalt speichern.",
+            "reasoning": "Frage beantworten, erklären, rechnen oder einen Plan erstellen.",
+            "unknown": "Unklar, mehrere Aktionen oder nicht unterstützt.",
         },
     }
 }
@@ -60,7 +61,7 @@ def parse_prediction(result: object) -> dict:
         raise PredictionError("Laya returned invalid option metadata.")
     if options:
         # v0.2.0 reports this field only for collapsed token spans. Such a
-        # result cannot distinguish all four intents and must be rejected.
+        # result cannot distinguish all intents and must be rejected.
         raise PredictionError("Laya collapsed the options; no decision was accepted.", truncated=True)
     answers = result.get("answers")
     answer = answers.get("intent") if isinstance(answers, dict) else None
@@ -76,8 +77,7 @@ def parse_prediction(result: object) -> dict:
         for value in probabilities.values()
     ):
         raise PredictionError("Laya returned invalid probabilities.")
-    # The upstream runtime rounds each of four probabilities to four decimal
-    # places, so the sum can differ from one by up to 0.0002.
+    # Upstream rounds probabilities to four decimal places.
     if not math.isclose(sum(probabilities.values()), 1.0, abs_tol=0.001):
         raise PredictionError("Laya probabilities do not sum to one.")
     if probabilities[choice] < max(probabilities.values()):

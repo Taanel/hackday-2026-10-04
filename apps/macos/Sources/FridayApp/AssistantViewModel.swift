@@ -23,6 +23,7 @@ import FridayAdapters
     private var microphoneTask: Task<Void, Never>?
     private var generation = UUID()
     private var isLive = false
+    private var reasoningLabel = "LLM"
     private var shuttingDown = false
     private(set) var task: Task<Void, Never>?
 
@@ -41,15 +42,27 @@ import FridayAdapters
     static func live() -> AssistantViewModel {
         do {
             let configuration = try RuntimeConfiguration.load()
+            let parser = ActionArgumentParser(applications: MacApplicationCatalog.aliases())
             let laya = configuration.worker("laya")
             let wake = MoonshineWakeWordDetector(worker: configuration.worker("wake"))
             let hex = HexService(configuration: configuration)
+            let reasoning: any ReasoningEngine
+            let reasoningLabel: String
+            if configuration.reasoningProvider == "gemini" {
+                let name = configuration.geminiModel ?? "gemini-3.8-flash"
+                reasoning = GeminiReasoningEngine(model: name)
+                reasoningLabel = "Gemini · \(name)"
+            } else {
+                reasoning = OllamaReasoningEngine(model: configuration.ollamaModel)
+                reasoningLabel = "Ollama · lokal"
+            }
             let model = AssistantViewModel(router: AssistantRouter(
-                decisions: LayaDecisionEngine(worker: laya),
-                reasoning: OllamaReasoningEngine(model: configuration.ollamaModel),
+                decisions: LayaDecisionEngine(worker: laya, parser: parser),
+                reasoning: reasoning,
                 tools: MacToolExecutor(), minimumConfidence: 0.75
             ))
             model.isLive = true; model.isReady = false
+            model.reasoningLabel = reasoningLabel
             model.hex = hex; model.layaWorker = laya
             let voice = VoiceController(wake: wake)
             model.voice = voice
@@ -140,7 +153,7 @@ import FridayAdapters
                 response = result.text
                 switch result.route {
                 case .fastAction: status = isLive ? "Aktion ausgeführt" : "Schnelle Aktion · Vorschau"
-                case .reasoning: status = isLive ? "LLM-Antwort · lokal" : "LLM-Fallback · Platzhalter"
+                case .reasoning: status = isLive ? "Antwort · \(reasoningLabel)" : "LLM-Fallback · Platzhalter"
                 case .dictation: status = "Diktat · Textvorschau"
                 }
                 // Computer actions finish visually; only requested LLM answers are spoken.
@@ -173,7 +186,7 @@ import FridayAdapters
         switch phase {
         case .deciding: status = isLive ? "Laya entscheidet …" : "Entscheidung · Demo"
         case .acting: status = isLive ? "Computeraktion läuft …" : "Computeraktion · Vorschau"
-        case .reasoning: status = isLive ? "Lokales LLM denkt nach …" : "LLM · Demo"
+        case .reasoning: status = isLive ? "\(reasoningLabel) denkt nach …" : "LLM · Demo"
         default: break
         }
     }

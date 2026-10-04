@@ -11,7 +11,7 @@ flowchart TD
     Hex --> Laya[Laya Core ML: Intent und Konfidenz]
     Text[Texteingabe] --> Laya
     Laya -->|gültige eindeutige Aktion| Tools[MacToolExecutor: App oder Notiz]
-    Laya -->|komplex, unklar oder ungültig| LLM[Ollama lokal]
+    Laya -->|komplex, unklar oder ungültig| LLM[Gemini oder Ollama]
     Tools --> Done[Sichtbarer Abschluss]
     LLM --> Reply[Antworttext]
     Reply --> TTS[Optional: System-TTS]
@@ -23,8 +23,8 @@ beginnt die Aufnahme am gemeldeten Sample-Offset, einschließlich bereits gepuff
 Sprache. Eine Sprechpause beendet den Befehl; spätestens nach 30 Sekunden endet er.
 Hex erhält PCM16-WAV-Dateien über den authentifizierten Loopback-Service.
 
-Laya wählt open_app, create_note, reasoning oder unknown. Ein separater Parser
-akzeptiert nur vollständige unterstützte Aktionen und bekannte App-Aliasse.
+Laya wählt open_app, search_web, create_note, reasoning oder unknown. Ein separater Parser
+akzeptiert nur vollständige unterstützte Aktionen und automatisch entdeckte App-Namen.
 Die Live-Konfidenzgrenze 0.75 ist vorläufig: die ersten deutschen Inferenztests
 rechtfertigen sie für den Prototyp; weitere Kalibrierung bleibt offen. Ungültige,
 trunkierte oder unsichere Entscheidungen führen zum LLM. Ein Toolfehler wiederholt
@@ -43,9 +43,22 @@ laufende Tasks, wartet deren Ende ab und stoppt alle eigenen Helper.
 
 NSWorkspace öffnet bekannte installierte Bundle-IDs. Notizen werden atomar im
 Friday-Ordner gespeichert. Terminal- und Accessibility-Aktionen sowie Cursor-Diktat
-sind noch offen. Ollama besitzt keine Web- oder Computerwerkzeuge; System-TTS wird
+sind noch offen. Der LLM-Antwortpfad besitzt keine Web- oder Computerwerkzeuge; System-TTS wird
 nur für angeforderte LLM-Antworten genutzt und wartet auf Wiedergabeende.
 
-Das PNG-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
+Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
 recording, transcribing, deciding, acting, reasoning, speaking, failed. Die native
 ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündelt.
+
+GeminiReasoningEngine verwendet die GenerateContent-API mit Header-Authentifizierung,
+60-Sekunden-Deadline und finalem Antworttext ohne Thinking-Parts. Der persönliche
+API-Schlüssel kommt aus dem macOS-Schlüsselbund. HTTP-Fehler werden sanitisiert.
+Safari-Suchen öffnen einen URL-encoded Google-Suchlink ausdrücklich mit Safari;
+sie liefern keine LLM-Zusammenfassung der Ergebnisse. Der Mikrofon-Tap ist explizit
+Sendable, weil AVAudioEngine ihn außerhalb des MainActor aufruft.
+
+MacApplicationCatalog liest Namen und Bundle-IDs aus Applications, System-Applications
+und dem persönlichen Applications-Ordner. Mehrdeutige Namen werden nicht geraten.
+Der Executor öffnet die tatsächlich über Launch Services gefundene Anwendung.
+Vollständig erkannte Safari-Suchen werden vor Laya sprachlich normalisiert;
+die Klassifikation und Konfidenz bleiben echte Laya-Ausgaben.

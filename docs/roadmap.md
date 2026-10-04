@@ -2,12 +2,12 @@
 
 ## Erste testbare Version umgesetzt
 
-- [x] PNG-Maskottchen, Menüleiste und native Thinking Orbs.
+- [x] Thinking-Orb-Overlay, Menüleiste und native Thinking Orbs.
 - [x] Zentrale Aufnahme, Stop/Abbruch und lokales deutsches Hex-Modell.
 - [x] „Hey Friday“ mit Moonshine, Opt-in und Pause während Verarbeitung/TTS.
 - [x] Lokale Laya-Inferenz, feste Intents und geprüfte Aktionsargumente.
-- [x] Echte App-Starts und Markdown-Notizspeicherung.
-- [x] Ollama-Fallback und optionales System-TTS ausschließlich für LLM-Antworten.
+- [x] Automatisch erkannte App-Starts, Safari-Websuche und Markdown-Notizspeicherung.
+- [x] Gemini-3.8-Flash-/Ollama-Fallback und optionales System-TTS ausschließlich für LLM-Antworten.
 - [x] Gepinntes Setup, Swift-/Python-Tests und signierter Entwicklungsbuild.
 
 ## Als Nächstes

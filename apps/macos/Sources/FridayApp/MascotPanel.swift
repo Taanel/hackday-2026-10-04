@@ -82,11 +82,10 @@ private struct FloatingAssistant: View {
     var body: some View {
         VStack(spacing: 4) {
             Button(action: open) {
-                MascotImage().frame(width: 68, height: 68)
+                AssistantOrb(phase: model.phase, size: .px64, animateIdle: true)
+                    .padding(8)
+                    .background(.regularMaterial, in: Circle())
             }.buttonStyle(.plain)
-                AssistantOrb(phase: model.phase, size: .px20)
-                    .padding(6)
-                    .background(.regularMaterial, in: Capsule())
             if model.isRecording {
                 Button("Stop") { model.stopRecording() }.buttonStyle(.bordered)
             } else {

@@ -60,9 +60,18 @@ private final class Resampler: @unchecked Sendable {
         let node = engine.inputNode
         let format = node.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else { throw AdapterError.unavailable("Kein Mikrofon verfügbar.") }
+        generation = UUID()
+        node.installTap(onBus: 0, bufferSize: 4096, format: format, block: try makeTap(format: format))
+        do { engine.prepare(); try engine.start(); started = true }
+        catch { node.removeTap(onBus: 0); throw error }
+    }
+
+    func makeTap(format: AVAudioFormat) throws -> AVAudioNodeTapBlock {
         let resampler = try Resampler(input: format)
-        let token = UUID(); generation = token
-        node.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+        let token = generation
+        // AVAudioNodeTapBlock lacks Sendable annotations. Its callback runs on
+        // an audio thread and must not inherit this object's MainActor.
+        return { @Sendable [weak self] buffer, _ in
             do {
                 let samples = try resampler.convert(buffer)
                 Task { @MainActor [weak self] in
@@ -74,8 +83,6 @@ private final class Resampler: @unchecked Sendable {
                 self?.onError?(error)
             } }
         }
-        do { engine.prepare(); try engine.start(); started = true }
-        catch { node.removeTap(onBus: 0); throw error }
     }
 
     private func receive(_ samples: [Float]) {

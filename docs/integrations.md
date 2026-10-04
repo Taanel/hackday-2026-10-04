@@ -30,7 +30,7 @@ Laya liefert typisierte Auswahl-, Score- und Ja/Nein-Entscheidungen statt
 generiertem Antworttext. Es passt damit zum Routing zwischen vordefinierten Aktionen.
 
 Anschlusspunkt: `LayaDecisionEngine.decide(text:)`.
-Kandidaten: Programm öffnen, Notiz erstellen, Reasoning, unbekannt.
+Kandidaten: Programm öffnen, Safari-Suche, Notiz erstellen, Reasoning, unbekannt.
 Der Python-Worker verwendet [laya-coreml](https://github.com/mizorewww/laya-coreml) 0.2.0
 und die gepinnten multilingual Core-ML-Gewichte. Swift kommuniziert über JSON-Zeilen.
 Deutschqualität, Konfidenz und Latenz mit realen Mac-Befehlen messen.
@@ -47,7 +47,7 @@ Recherchen benötigen zusätzlich Such-/Browserwerkzeuge und Quellen.
 ## Computer Use
 
 Anschlusspunkte: `ToolExecutor.execute(_:)` und `TextOutput.insertAtCursor(_:)`.
-Umgesetzt: bekannte App-Starts per Bundle-ID und Markdown-Notizablage.
+Umgesetzt: automatisch erkannte App-Starts per Bundle-ID, Safari-Websuche und Markdown-Notizablage.
 Offen: Terminal-Prozesse und Accessibility-basierte UI-Aktionen. Das Terminal erhält ausführbaren Pfad,
 Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt App- und Notizaktionen aus; freie Terminalbefehle lehnt V1 ab.
 
@@ -69,3 +69,13 @@ mit neun Animationen. Die MIT-Quellen sind unter `Vendor/ThinkingOrbsKit`
 auf Revision `d06640864eb4adc2fe240f899a44ee6210779782` gepinnt.
 `AssistantOrb` ist der app-eigene Wrapper; die Oberfläche benötigt kein npm,
 React oder WebView. Der Upstream-Copyright-Hinweis liegt auch in den App-Ressourcen.
+
+## Gemini 3.8 Flash
+
+Optionaler Antwort-Provider über Googles GenerateContent-API. Der persönliche
+API-Schlüssel wird im macOS-Schlüsselbund unter dev.hackday.friday.gemini gespeichert.
+`python3 scripts/configure-gemini.py` wählt das Cloud-Fallback; das normale lokale
+Setup behält die gewählte Fallback-Konfiguration bei. Googles
+[Modell-Dokumentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+beschreibt den geprüften Modellnamen. App-Starts, Safari-Suche und Notizen bleiben
+lokale Toolaktionen; komplexe Antworttexte können optional vorgelesen werden.

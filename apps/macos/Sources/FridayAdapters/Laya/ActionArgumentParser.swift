@@ -13,16 +13,26 @@ public struct ActionArgumentParser: Sendable {
         "slack": "com.tinyspeck.slackmacgap", "discord": "com.hnc.Discord", "claude": "com.anthropic.claudefordesktop"
     ]
 
-    public init() {}
+    private let applicationAliases: [String: String]
+    public init(applications: [String: String] = Self.applications) {
+        applicationAliases = applications
+    }
 
     public func parse(intent: String, text: String) -> ToolRequest? {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch intent {
+        case "search_web":
+            guard let query = capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:nach\s+)?(.+?)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)[.!?]*$"#, text)
+                ?? capture(#"^(?:bitte\s+)?(?:suche|such)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)\s+nach\s+(.+?)[.!?]*$"#, text),
+                  !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  query.count <= 2_000,
+                  query.range(of: #"\b(?:und|dann|danach)\s+(?:bitte\s+)?(?:öffne|starte|lösche|schließe|mach|erstelle|schreibe|führe)\b"#, options: [.regularExpression, .caseInsensitive]) == nil else { return nil }
+            return .searchSafari(query: query)
         case "open_app":
             guard let name = capture(
                 #"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:öffne|oeffne|starte|open|launch)\s+(?:(?:das\s+programm|die\s+app|den|die|das)\s+)?(.+?)(?:\s+bitte)?[.!?]*$"#, text
             ) ?? capture(#"^(?:kannst|könntest)\s+du\s+(?:bitte\s+)?(.+?)\s+(?:öffnen|starten)[.!?]*$"#, text),
-                  let identifier = Self.applications[name.lowercased().trimmingCharacters(in: .whitespaces)] else { return nil }
+                  let identifier = applicationAliases[MacApplicationCatalog.normalize(name)] else { return nil }
             return .openApplication(bundleIdentifier: identifier)
         case "create_note":
             guard let content = capture(

@@ -8,6 +8,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public var hexExecutable: String
     public var hexSupportDirectory: String
     public var ollamaModel: String
+    public var reasoningProvider: String?
+    public var geminiModel: String?
 
     public static var supportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser

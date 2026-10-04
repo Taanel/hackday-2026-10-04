@@ -40,6 +40,7 @@ public struct TerminalCommand: Sendable, Equatable {
 
 public enum ToolRequest: Sendable, Equatable {
     case openApplication(bundleIdentifier: String)
+    case searchSafari(query: String)
     case createNote(text: String)
     case runExecutable(TerminalCommand)
 
@@ -50,6 +51,8 @@ public enum ToolRequest: Sendable, Equatable {
             return identifier.contains(".") && !identifier.contains(where: { $0.isWhitespace })
         case .createNote(let text):
             return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .searchSafari(let query):
+            return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && query.count <= 2_000
         case .runExecutable(let command):
             return command.executablePath.hasPrefix("/") && command.workingDirectory.isFileURL
         }

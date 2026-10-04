@@ -5,6 +5,11 @@ from uuid import uuid4
 import pytest
 
 
+def test_safari_search_is_an_explicit_local_model_option():
+    from friday_runtime.laya import INTENT_QUESTION
+    assert "search_web" in INTENT_QUESTION["intent"]["criteria"]
+
+
 def prediction():
     return {
         "answers": {
@@ -14,6 +19,7 @@ def prediction():
                 "probabilities": {
                     "open_app": 0.81,
                     "create_note": 0.10,
+                    "search_web": 0.0,
                     "reasoning": 0.06,
                     "unknown": 0.03,
                 },
@@ -71,7 +77,7 @@ def test_ready_follows_warmup_and_request_uses_choice_probability(tmp_path):
     assert agent.calls[-1][0] == "Öffne Safari."
     question = agent.calls[-1][1]["intent"]
     assert question["type"] == "choice"
-    assert set(question["criteria"]) == {"open_app", "create_note", "reasoning", "unknown"}
+    assert set(question["criteria"]) == {"open_app", "search_web", "create_note", "reasoning", "unknown"}
     assert all(isinstance(value, str) and value for value in question["criteria"].values())
     assert agent.closed
 
@@ -80,7 +86,7 @@ def test_ready_follows_warmup_and_request_uses_choice_probability(tmp_path):
     {"truncated": True},
     {"truncated_questions": ["intent"]},
     {"state_tokens_dropped": 3},
-    {"options": {"intent": {"total": 4, "distinct": 3, "tokens_per_option": 2}}},
+    {"options": {"intent": {"total": 5, "distinct": 4, "tokens_per_option": 2}}},
 ])
 def test_truncated_state_or_collapsed_options_cannot_become_a_decision(usage):
     from friday_runtime.laya import PredictionError, parse_prediction

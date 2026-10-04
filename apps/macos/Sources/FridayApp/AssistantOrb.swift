@@ -35,9 +35,10 @@ extension AssistantPhase {
 struct AssistantOrb: View {
     let phase: AssistantPhase
     var size: OrbSize = .px64
+    var animateIdle = false
 
     var body: some View {
-        ThinkingOrb(state: phase.orbState, size: size, paused: phase == .idle || phase == .failed)
+        ThinkingOrb(state: phase.orbState, size: size, paused: (phase == .idle && !animateIdle) || phase == .failed)
             .overlay(alignment: .bottomTrailing) {
                 if phase == .failed {
                     Image(systemName: "exclamationmark.circle.fill")
