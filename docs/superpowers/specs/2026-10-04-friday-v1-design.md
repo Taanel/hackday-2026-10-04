@@ -22,7 +22,9 @@ das Bearer-Token nicht ausgeben. Die App lädt während normaler Nutzung keine M
 Fridays zentrale AVAudioEngine liefert Mono-PCM an Wake-Erkennung und Aufnahme.
 Nach Aktivierung bleibt ein kurzer Audio-Vorlauf erhalten; die Wake-Phrase wird
 nur am Transkriptanfang entfernt. Silenz beendet den Befehl, alternativ Stop-Taste.
-Während Transkription, Entscheidung, Aktion, LLM und TTS pausiert Wake-Erkennung.
+Ab dem ersten Trigger pausiert Wake-Erkennung bereits während der Aufnahme;
+weitere und verspätete Trigger werden ignoriert. Während Transkription,
+Entscheidung, Aktion, LLM und TTS bleibt Wake-Erkennung pausiert.
 Nach Abschluss oder Fehler beginnt wieder der sichtbare Hörzustand.
 
 ## Testbare Aktionen und Antwort
@@ -42,7 +44,11 @@ Das Overlay öffnet per Klick das kompakte Fenster. Dort: lokale Providerbereits
 „Hey Friday aktivieren“, Aufnahme/Stop, manuelle Texteingabe, TTS und Abbrechen.
 Mikrofonzugriff wird erst beim Aktivieren angefordert. Eine dauerhafte Aufnahme
 wird klar angezeigt und kann ausgeschaltet werden. Fehler sind sichtbar und die
-App bleibt bedienbar. Beenden schließt alle eigenen Helper und die Mikrofonquelle.
+App bleibt bedienbar. Abbruch beendet bei laufender Hex-Inferenz den app-eigenen
+Helper und wartet auf Prozessende; vor Wiederverwendung startet ein neuer Helper
+mit geprüftem Handshake. Anfragegenerationen verhindern Aktionen, TTS und UI-
+Änderungen aus verspäteten Worker-/HTTP-Ergebnissen. Beenden schließt alle eigenen
+Helper und die Mikrofonquelle.
 
 Ein reproduzierbares Setup-Skript installiert die isolierte Runtime und Modelle
 unter `~/Library/Application Support/Friday`, außerhalb Git. Der lokale App-Build
