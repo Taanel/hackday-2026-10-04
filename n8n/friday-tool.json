@@ -1,0 +1,638 @@
+{
+  "name": "friday-tool",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "friday-tool",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000000",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "friday-tool"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cb9dee65-c277-40e8-85ed-af0778bebd11",
+                    "leftValue": "={{ $json.body.tool }}",
+                    "rightValue": "createNote",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "createNote"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5bd167e3-63c2-4c41-a531-bb7d7e98b73f",
+                    "leftValue": "={{ $json.body.tool }}",
+                    "rightValue": "sendMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sendMessage"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e5d0ca1f-eabe-4cea-a75f-542131625a27",
+                    "leftValue": "={{ $json.body.tool }}",
+                    "rightValue": "timer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "timer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d6814b6a-31cf-4837-97a7-a3331c0021ab",
+                    "leftValue": "={{ $json.body.tool }}",
+                    "rightValue": "research",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "research"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000000",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ba520685-ec6e-4a04-9ae9-d94ea7fc02af",
+              "name": "line",
+              "value": "=- {{ $now.format('yyyy-MM-dd HH:mm') }} {{ $('Webhook').item.json.body.text }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000000",
+      "name": "Notiz: Zeile bauen",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "line",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000000",
+      "name": "Notiz: In Datei umwandeln",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/Users/thanh/ThanhCodes/hackday-2026-10-04/n8n/friday-notes.md",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000000",
+      "name": "Notiz: An friday-notes.md anhängen",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        980,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Notiz gespeichert: ' + $('Webhook').item.json.body.text }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000000",
+      "name": "Notiz: Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1b5ba273-90af-4a54-bf7a-f91d10a6b0c9",
+              "name": "discordWebhookUrl",
+              "value": "HIER_DISCORD_WEBHOOK_URL_EINTRAGEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000000",
+      "name": "Discord: Konfiguration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "647b96bb-ec7b-4087-ab77-bc0c10c73aaf",
+              "leftValue": "={{ $json.discordWebhookUrl }}",
+              "rightValue": "https://discord.com/api/webhooks/",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000000",
+      "name": "Discord: konfiguriert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.discordWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $('Webhook').item.json.body.text }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000000",
+      "name": "Discord: Nachricht senden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Nachricht an Discord gesendet' }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0010-4000-8000-000000000000",
+      "name": "Discord: Antwort OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Discord-Webhook-URL ist im Workflow nicht eingetragen' }) }}",
+        "options": {
+          "responseCode": 501
+        }
+      },
+      "id": "a1b2c3d4-0011-4000-8000-000000000000",
+      "name": "Discord: Antwort nicht konfiguriert",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Timer gestartet: ' + ($('Webhook').item.json.body.label || 'Timer') + ' in ' + $('Webhook').item.json.body.seconds + ' s' }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0012-4000-8000-000000000000",
+      "name": "Timer: Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ Number($('Webhook').item.json.body.seconds) }}",
+        "unit": "seconds"
+      },
+      "id": "a1b2c3d4-0013-4000-8000-000000000000",
+      "name": "Timer: Warten",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        300
+      ],
+      "webhookId": "eead429c-0105-4591-b852-9c498c43d30c"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "40b1131d-3c43-47f2-af78-edd4efa1295a",
+              "name": "line",
+              "value": "=- {{ $now.format('yyyy-MM-dd HH:mm') }} Timer abgelaufen: {{ $('Webhook').item.json.body.label || 'Timer' }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0014-4000-8000-000000000000",
+      "name": "Timer: Zeile bauen",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "line",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0015-4000-8000-000000000000",
+      "name": "Timer: In Datei umwandeln",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/Users/thanh/ThanhCodes/hackday-2026-10-04/n8n/friday-notes.md",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "a1b2c3d4-0016-4000-8000-000000000000",
+      "name": "Timer: An friday-notes.md anhängen",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama3.2', prompt: 'Antworte kurz und auf Deutsch: ' + $('Webhook').item.json.body.text, stream: false }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a1b2c3d4-0017-4000-8000-000000000000",
+      "name": "Recherche: Ollama fragen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, answer: $json.response }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0018-4000-8000-000000000000",
+      "name": "Recherche: Antwort",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'Unbekanntes Tool: ' + $('Webhook').item.json.body.tool }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "a1b2c3d4-0019-4000-8000-000000000000",
+      "name": "Antwort unbekannt",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        740
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notiz: Zeile bauen": {
+      "main": [
+        [
+          {
+            "node": "Notiz: In Datei umwandeln",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notiz: In Datei umwandeln": {
+      "main": [
+        [
+          {
+            "node": "Notiz: An friday-notes.md anhängen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Notiz: Zeile bauen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Discord: Konfiguration",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Timer: Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recherche: Ollama fragen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Antwort unbekannt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notiz: An friday-notes.md anhängen": {
+      "main": [
+        [
+          {
+            "node": "Notiz: Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord: Konfiguration": {
+      "main": [
+        [
+          {
+            "node": "Discord: konfiguriert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord: konfiguriert?": {
+      "main": [
+        [
+          {
+            "node": "Discord: Nachricht senden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Discord: Antwort nicht konfiguriert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord: Nachricht senden": {
+      "main": [
+        [
+          {
+            "node": "Discord: Antwort OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer: Zeile bauen": {
+      "main": [
+        [
+          {
+            "node": "Timer: In Datei umwandeln",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer: In Datei umwandeln": {
+      "main": [
+        [
+          {
+            "node": "Timer: An friday-notes.md anhängen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer: Antwort": {
+      "main": [
+        [
+          {
+            "node": "Timer: Warten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer: Warten": {
+      "main": [
+        [
+          {
+            "node": "Timer: Zeile bauen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recherche: Ollama fragen": {
+      "main": [
+        [
+          {
+            "node": "Recherche: Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
