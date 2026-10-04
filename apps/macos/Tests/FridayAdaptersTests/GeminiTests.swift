@@ -104,6 +104,19 @@ private final class GeminiSuccessProtocol: URLProtocol, @unchecked Sendable {
     #expect(engine.model == "gemini-3.5-flash-lite")
 }
 
+@Test func updatingLocalKeyInvalidatesTheGeminiSessionCredential() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [GeminiSuccessProtocol.self]
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    let loads = CredentialLoads()
+    let engine = GeminiReasoningEngine(session: session, apiKey: { loads.load() })
+    _ = try await engine.respond(to: "Frage eins")
+    await engine.invalidateCredentials()
+    _ = try await engine.respond(to: "Frage zwei")
+    #expect(loads.count == 2)
+}
+
 @Test func geminiReturnsFinalTextAndSanitizesFailures() throws {
     let json = Data(#"{"candidates":[{"content":{"parts":[{"thought":true,"text":"Internes Denken"},{"text":"Dein Plan."}]}}]}"#.utf8)
     #expect(try GeminiReasoningEngine.decodeReply(json, status: 200) == "Dein Plan.")

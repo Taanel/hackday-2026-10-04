@@ -16,7 +16,7 @@ struct AssistantView: View {
                         Text("Dein Assistent für den Mac").foregroundStyle(.secondary)
                     }
                     Spacer()
-                    AssistantOrb(phase: model.phase, animateIdle: true)
+                    AssistantOrb(phase: model.phase)
                         .scaleEffect(0.625).frame(width: 40, height: 40)
                 }
 
@@ -39,6 +39,10 @@ struct AssistantView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Antwort").font(.headline)
                         Text(model.response).textSelection(.enabled)
+                        if model.canReplayAnswer {
+                            Button("Noch einmal vorlesen", systemImage: "speaker.wave.2.fill") { model.replayAnswer() }
+                                .disabled(model.isWorking)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
@@ -117,6 +121,21 @@ struct AssistantView: View {
 
                 DisclosureGroup("Orb-Vorschau · 9 Animationen", isExpanded: $showsOrbGallery) {
                     OrbGallery()
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Gemini API-Schlüssel").font(.headline)
+                    HStack {
+                        SecureField(model.geminiKeyConfigured ? "Neuen Schlüssel eintragen" : "API-Schlüssel eintragen", text: $model.geminiKeyInput)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(model.isWorking)
+                        Button("Lokal speichern") { Task { await model.saveGeminiKey() } }
+                            .disabled(model.isWorking || model.geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    Text(model.geminiKeyStatus.isEmpty
+                         ? (model.geminiKeyConfigured ? "Schlüssel lokal gespeichert · kein Schlüsselbundzugriff." : "Nur auf diesem Mac gespeichert, außerhalb des Projekts.")
+                         : model.geminiKeyStatus)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(24)

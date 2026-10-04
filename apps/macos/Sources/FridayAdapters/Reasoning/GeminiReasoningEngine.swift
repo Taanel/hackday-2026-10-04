@@ -1,25 +1,5 @@
 import Foundation
-import Security
 import FridayCore
-
-public enum GeminiKeychain {
-    public static func load() throws -> String {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: "dev.hackday.friday.gemini",
-            kSecAttrAccount: "Friday",
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data,
-              let key = String(data: data, encoding: .utf8), !key.isEmpty else {
-            throw AdapterError.unavailable("Gemini-Schlüssel nicht verfügbar. Bitte den Friday-Schlüsselbundzugriff erlauben oder scripts/configure-gemini.py ausführen.")
-        }
-        return key
-    }
-}
 
 private actor GeminiAvailability {
     private var retryAfter = Date.distantPast
@@ -27,30 +7,35 @@ private actor GeminiAvailability {
     func coolDown() { retryAfter = Date().addingTimeInterval(120) }
 }
 
-/// Keep the credential only in memory. Concurrent questions share one Keychain
-/// read, and Security's authorization dialog cannot block the main UI thread.
+/// Concurrent questions share one local file read per session. Settings changes
+/// invalidate the cache without letting an older read restore the previous key.
 private actor GeminiCredentials {
     private let loader: @Sendable () throws -> String
     private var key: String?
     private var loading: Task<String, any Error>?
+    private var generation = UUID()
 
     init(loader: @escaping @Sendable () throws -> String) { self.loader = loader }
 
     func load() async throws -> String {
         if let key { return key }
-        if let loading { return try await loading.value }
+        let token = generation
         let loader = loader
-        let task = Task.detached { try loader() }
+        let task = loading ?? Task.detached { try loader() }
         loading = task
         do {
             let value = try await task.value
+            guard generation == token else { return try await load() }
             key = value; loading = nil
             return value
         } catch {
+            guard generation == token else { return try await load() }
             loading = nil
             throw error
         }
     }
+
+    func invalidate() { generation = UUID(); key = nil; loading = nil }
 }
 
 /// Cloud fallback can answer or return bounded, typed actions to the local router.
@@ -63,7 +48,7 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
     private var backupModel: String { model == "gemini-3.5-flash-lite" ? "gemini-3.8-flash" : "gemini-3.5-flash-lite" }
 
     public init(model: String = "gemini-3.5-flash-lite", session: URLSession = .shared, applications: [String: String]? = nil,
-                apiKey: @escaping @Sendable () throws -> String = { try GeminiKeychain.load() }) {
+                apiKey: @escaping @Sendable () throws -> String = { try LocalGeminiKeyStore().load() }) {
         self.model = model; self.session = session; self.credentials = GeminiCredentials(loader: apiKey); self.applications = applications
     }
 
@@ -71,6 +56,8 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
         guard case .answer(let answer) = try await plan(to: text) else { throw FridayError.invalidActionPlan }
         return answer
     }
+
+    public func invalidateCredentials() async { await credentials.invalidate() }
 
     public func plan(to text: String) async throws -> ReasoningPlan {
         try Task.checkCancellation()

@@ -72,9 +72,12 @@ dafür braucht die App keinen externen TTS-Account oder API-Key. Die Ausgabe ist
 standardmäßig aktiv und abschaltbar, für finale LLM-Antworten und LLM-Fehler; Computeraktionen und
 Diktat bleiben stumm. `speak` wartet auf Wiedergabeende; Stop/Abbruch beendet
 die wartende Anfrage mit `CancellationError`.
+„Noch einmal vorlesen“ verwendet den gespeicherten Antworttext ohne erneuten
+Modellaufruf. Replay bleibt während anderer Arbeit gesperrt; ein Generation-Token
+verhindert, dass alte Wiedergabe-Abschlüsse neue Befehle oder Wake beeinflussen.
 `ElevenLabsSpeechOutput` ist ein späterer Anbieter-Slot, ohne API-Aufruf oder
 Key. Alternativ kann eine lokale TTS-Engine denselben Vertrag implementieren.
-Cloud-Schlüssel gehören später in die Keychain, nicht ins Repository.
+Schlüssel anderer optionaler Anbieter werden ebenfalls außerhalb des Repositories gespeichert.
 
 ## Thinking Orbs
 
@@ -83,11 +86,19 @@ mit neun Animationen. Die MIT-Quellen sind unter `Vendor/ThinkingOrbsKit`
 auf Revision `d06640864eb4adc2fe240f899a44ee6210779782` gepinnt.
 `AssistantOrb` ist der app-eigene Wrapper; die Oberfläche benötigt kein npm,
 React oder WebView. Der Upstream-Copyright-Hinweis liegt auch in den App-Ressourcen.
+Idle und Wake-Bereitschaft sind statische 2D-Ringe; Aufnahme animiert denselben Ring.
+Ausführung nutzt working, Gemini die verschachtelnde solving-Animation.
+Das transparente Panel vergrößert sich nur für Aufnahme-Stop oder
+das kurze Hex-Transkript und schrumpft danach zurück. Der erkannte Text bleibt bis
+acht Sekunden nach Verarbeitung sichtbar; Hex liefert derzeit keine Live-Teilsätze.
 
 ## Gemini Flash-Lite
 
 Optionaler Antwort-Provider über Googles GenerateContent-API. Der persönliche
-API-Schlüssel wird im macOS-Schlüsselbund unter dev.hackday.friday.gemini gespeichert.
+API-Schlüssel wird im lokalen `Credentials/gemini-api-key.txt`-Store im Friday-
+Application-Support-Ordner gespeichert (Datei 0600, Ordner 0700). Das Eingabefeld
+unten im Fenster und das CLI nutzen dasselbe Format. Die App liest nicht mehr aus
+dem Schlüsselbund. Schlüssel sind nicht im App-Bundle oder in Git enthalten.
 `python3 scripts/configure-gemini.py` wählt das Cloud-Fallback; das normale lokale
 Setup behält die gewählte Fallback-Konfiguration bei. Googles
 [Thinking-Dokumentation](https://ai.google.dev/gemini-api/docs/thinking)
@@ -99,7 +110,8 @@ und Function Calling. App-Starts, Safari-Suche, Notizen und Schreibtischwechsel
 bleiben lokale Toolaktionen. Gemini kann diese als typisierte Aufträge an Friday
 zurückgeben; unbekannte Funktionen oder nicht installierte App-Namen werden
 abgelehnt. Finale Antworten werden standardmäßig lokal vorgelesen. Der Schlüssel
-wird pro Engine-Sitzung einmal außerhalb des UI-Threads aus dem Schlüsselbund
-gelesen und ausschließlich im Arbeitsspeicher gehalten. Mit einer stabilen Apple-
-Signatur bleibt die vom Nutzer über „Immer erlauben“ erteilte Freigabe auch bei
-Updates derselben Signieridentität erhalten.
+wird pro Engine-Sitzung einmal außerhalb des UI-Threads aus der lokalen Datei
+gelesen und gecacht. Nach einer Änderung im Eingabefeld wird der Sitzungscache
+mit einem Generation-Token verworfen; alte ausstehende Ladevorgänge dürfen den
+vorherigen Wert nicht wiederherstellen. Speichern prüft das Format, keine API-
+Autorisierung. Fehlende oder von Google abgelehnte Schlüssel erzeugen klare Fehler.

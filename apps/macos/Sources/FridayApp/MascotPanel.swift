@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 struct MascotImage: View {
     private var resourceBundle: Bundle {
@@ -35,11 +36,12 @@ struct MascotImage: View {
     static var openAssistant: (() -> Void)?
     let model = AssistantViewModel.live()
     private var mascotPanel: NSPanel?
+    private var overlaySubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.prepare()
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 96, height: 144),
+            contentRect: NSRect(x: 0, y: 0, width: 96, height: 96),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -52,6 +54,9 @@ struct MascotImage: View {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = NSHostingView(rootView: FloatingAssistant(model: model, open: showAssistant))
         mascotPanel = panel
+        overlaySubscription = model.$overlayTranscript.combineLatest(model.$isRecording).sink { [weak self] text, recording in
+            self?.layoutMascot(transcript: text, recording: recording)
+        }
         positionMascot()
         panel.orderFrontRegardless()
         NotificationCenter.default.addObserver(
@@ -61,8 +66,14 @@ struct MascotImage: View {
     }
 
     @objc private func positionMascot() {
+        layoutMascot(transcript: model.overlayTranscript, recording: model.isRecording)
+    }
+
+    private func layoutMascot(transcript: String, recording: Bool) {
         guard let panel = mascotPanel, let frame = NSScreen.main?.visibleFrame else { return }
-        panel.setFrameOrigin(NSPoint(x: frame.maxX - 116, y: frame.maxY - 164))
+        let size = transcript.isEmpty ? NSSize(width: 96, height: recording ? 132 : 96) : NSSize(width: 280, height: 164)
+        panel.setFrame(NSRect(x: frame.maxX - 20 - size.width, y: frame.maxY - 20 - size.height,
+                             width: size.width, height: size.height), display: true)
     }
 
     private func showAssistant() {
@@ -75,36 +86,51 @@ struct MascotImage: View {
     }
 }
 
-private struct FloatingAssistant: View {
+struct FloatingAssistant: View {
     @ObservedObject var model: AssistantViewModel
     let open: () -> Void
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(alignment: .trailing, spacing: 6) {
             Button(action: open) {
-                AssistantOrb(phase: model.phase, size: .px64, animateIdle: true)
+                AssistantOrb(phase: model.phase, size: .px64)
                     .padding(8)
             }.buttonStyle(.plain)
             if model.isRecording {
-                Button("Stop") { model.stopRecording() }.buttonStyle(.bordered)
-            } else {
-                Text(model.wakeEnabled ? "Hey Friday" : "Friday")
-                    .font(.system(size: 10, weight: .semibold))
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.8), radius: 2)
+                Button("Stop") { model.stopRecording() }.buttonStyle(.bordered).frame(width: 80)
+            }
+            if !model.overlayTranscript.isEmpty {
+                OverlayTranscriptBubble(text: model.overlayTranscript)
             }
         }
-        .frame(width: 96, height: 144)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .help("Friday öffnen · \(model.phase.label)")
         .accessibilityLabel("Friday öffnen. \(model.phase.label)")
         .contextMenu {
-            Button(model.wakeEnabled ? "Hey Friday ausschalten" : "Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
+            Button(model.wakeEnabled ? "Wake ausschalten" : "Friday / Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
                 .disabled(!model.isReady || model.isWorking)
             Button("Sprechen") { model.startRecording() }.disabled(!model.isReady || model.isWorking)
             Button("Abbrechen") { model.cancel() }.disabled(!model.isWorking)
             Divider()
             Button("Beenden") { NSApp.terminate(nil) }
         }
+    }
+}
+
+struct OverlayTranscriptBubble: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .lineLimit(3)
+            .truncationMode(.tail)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 10))
+            .allowsHitTesting(false)
+            .accessibilityLabel("Erkannt: \(text)")
     }
 }

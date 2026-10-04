@@ -5,13 +5,13 @@ import ThinkingOrbsKit
 extension AssistantPhase {
     var orbState: OrbState {
         switch self {
-        case .idle: .breathing
-        case .listening, .recording: .listening
+        case .idle, .listening: .breathing
+        case .recording: .breathing
         case .transcribing: .weaving
         case .deciding: .connecting
         case .acting: .working
         case .reasoning: .solving
-        case .speaking: .listening
+        case .speaking: .composing
         case .failed: .shaping
         }
     }
@@ -19,7 +19,7 @@ extension AssistantPhase {
     var label: String {
         switch self {
         case .idle: "Bereit"
-        case .listening: "Hey Friday aktiv"
+        case .listening: "Friday aktiv"
         case .recording: "Höre deinen Befehl"
         case .transcribing: "Verstehe Sprache"
         case .deciding: "Entscheide"
@@ -35,10 +35,10 @@ extension AssistantPhase {
 struct AssistantOrb: View {
     let phase: AssistantPhase
     var size: OrbSize = .px64
-    var animateIdle = false
 
     var body: some View {
-        ThinkingOrb(state: phase.orbState, size: size, paused: (phase == .idle && !animateIdle) || phase == .failed)
+        ThinkingOrb(state: phase.orbState, size: size, speed: phase == .recording ? 0.5 : 1,
+                    paused: phase == .idle || phase == .listening || phase == .failed)
             .overlay(alignment: .bottomTrailing) {
                 if phase == .failed {
                     Image(systemName: "exclamationmark.circle.fill")

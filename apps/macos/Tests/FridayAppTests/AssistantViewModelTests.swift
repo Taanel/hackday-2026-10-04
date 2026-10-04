@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import FridayCore
+import FridayAdapters
 @testable import FridayApp
 
 private struct Decision: FastDecisionEngine {
@@ -12,6 +13,11 @@ private struct Decision: FastDecisionEngine {
 
 private struct Reasoning: ReasoningEngine {
     func respond(to text: String) async throws -> String { "Ein ausführlicher Plan." }
+}
+
+private actor CountedReasoning: ReasoningEngine {
+    private(set) var calls = 0
+    func respond(to text: String) async throws -> String { calls += 1; return "Die gespeicherte Antwort." }
 }
 
 private struct Tools: ToolExecutor {
@@ -117,4 +123,63 @@ func speechStateLastsUntilPlaybackFinishesOrIsCancelled(cancel: Bool) async thro
     #expect(AssistantViewModel.removeWakePrefix("Friday!") == "")
     #expect(AssistantViewModel.removeWakePrefix("Fridaynight ist ein Wort") == "Fridaynight ist ein Wort")
     #expect(AssistantViewModel.removeWakePrefix("Notiz: Hey Friday ist der Name.") == "Notiz: Hey Friday ist der Name.")
+}
+
+@Test @MainActor func replayUsesTheSavedAnswerAndCannotOverlapPlayback() async throws {
+    let speech = SpeechSpy()
+    let reasoning = CountedReasoning()
+    let model = AssistantViewModel(router: AssistantRouter(decisions: Decision(intent: .reasoning), reasoning: reasoning, tools: Tools()), speech: speech)
+    model.submit(); await model.task?.value
+    #expect(model.canReplayAnswer)
+    speech.holdsPlayback = true
+    model.replayAnswer()
+    for _ in 0..<200 where speech.pending == nil { try await Task.sleep(for: .milliseconds(5)) }
+    #expect(speech.pending != nil)
+    let activeTask = model.task
+    model.replayAnswer() // Cannot replace the existing playback task.
+    #expect(speech.texts == ["Die gespeicherte Antwort.", "Die gespeicherte Antwort."])
+    #expect(model.isWorking)
+    model.cancel()
+    await activeTask?.value
+    #expect(!model.isWorking)
+    #expect(model.phase == .idle)
+    #expect(await reasoning.calls == 1)
+}
+
+@Test @MainActor func appActionCannotBeReplayedAsASpokenAnswer() async {
+    let speech = SpeechSpy()
+    let model = model(intent: .action(.openApplication(bundleIdentifier: "com.apple.Safari")), speech: speech)
+    model.submit(); await model.task?.value
+    #expect(!model.canReplayAnswer)
+    model.replayAnswer()
+    #expect(speech.texts.isEmpty)
+}
+
+@Test @MainActor func transcriptTimersCannotClearANewerCommand() async throws {
+    let model = model(intent: .reasoning, speech: SpeechSpy())
+    model.showTranscript("Öffne Safari")
+    #expect(model.overlayTranscript == "Öffne Safari")
+    model.expireTranscript(after: .milliseconds(20))
+    model.showTranscript("Öffne Blender")
+    try await Task.sleep(for: .milliseconds(40))
+    #expect(model.overlayTranscript == "Öffne Blender")
+    model.expireTranscript(after: .milliseconds(10))
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(model.overlayTranscript.isEmpty)
+    model.showTranscript("Alte Aufnahme")
+    model.clearTranscript()
+    #expect(model.overlayTranscript.isEmpty)
+}
+
+@Test @MainActor func settingsStoreTheKeyLocallyAndClearTheEntryField() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = LocalGeminiKeyStore(directory: directory)
+    let model = AssistantViewModel(speech: SpeechSpy(), keyStore: store)
+    model.geminiKeyInput = "local-test-key"
+    await model.saveGeminiKey()
+    #expect(try store.load() == "local-test-key")
+    #expect(model.geminiKeyInput.isEmpty)
+    #expect(model.geminiKeyConfigured)
+    #expect(!model.geminiKeyStatus.contains("local-test-key"))
 }

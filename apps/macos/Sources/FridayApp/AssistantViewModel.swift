@@ -6,6 +6,11 @@ import FridayAdapters
     @Published var input = "Öffne Safari"
     @Published var mode: InputMode = .assistant
     @Published var speakResponses = true
+    @Published var geminiKeyInput = ""
+    @Published private(set) var geminiKeyConfigured = false
+    @Published private(set) var geminiKeyStatus = ""
+    @Published private(set) var overlayTranscript = ""
+    @Published private(set) var canReplayAnswer = false
     @Published private(set) var response = ""
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
@@ -20,6 +25,11 @@ import FridayAdapters
 
     private let router: AssistantRouter
     private let speech: any SpeechOutput
+    private let keyStore: LocalGeminiKeyStore
+    private var gemini: GeminiReasoningEngine?
+    private var replayText: String?
+    private var transcriptExpiry: Task<Void, Never>?
+    private var transcriptGeneration = UUID()
     private var voice: VoiceController?
     private var hex: HexService?
     private var layaWorker: JSONLineProcess?
@@ -38,10 +48,74 @@ import FridayAdapters
             reasoning: DemoReasoningEngine(),
             tools: PreviewToolExecutor()
         ),
-        speech: any SpeechOutput = SystemSpeechOutput()
+        speech: any SpeechOutput = SystemSpeechOutput(),
+        keyStore: LocalGeminiKeyStore = LocalGeminiKeyStore()
     ) {
         self.router = router
         self.speech = speech
+        self.keyStore = keyStore
+        geminiKeyConfigured = keyStore.isConfigured
+    }
+
+    func saveGeminiKey() async {
+        guard !shuttingDown, !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try keyStore.save(geminiKeyInput)
+            await gemini?.invalidateCredentials()
+            geminiKeyInput = ""
+            geminiKeyConfigured = true
+            geminiKeyStatus = "Lokal gespeichert · kein Schlüsselbundzugriff."
+        } catch { geminiKeyStatus = error.localizedDescription }
+    }
+
+    func replayAnswer() {
+        guard !shuttingDown, !isWorking, !isRecording, let text = replayText else { return }
+        let token = UUID(); generation = token
+        speech.stop()
+        isWorking = true; phase = .speaking; status = "Lese die Antwort noch einmal vor …"
+        task = Task {
+            defer { if generation == token { isWorking = false; task = nil } }
+            do {
+                await voice?.suspend()
+                try Task.checkCancellation()
+                guard generation == token else { throw CancellationError() }
+                try await speech.speak(text)
+                try Task.checkCancellation()
+                guard generation == token else { return }
+                phase = .idle; status = "Antwort vorgelesen"
+            } catch is CancellationError {
+                guard generation == token else { return }
+                phase = .idle; status = "Abgebrochen"
+            } catch {
+                guard generation == token else { return }
+                phase = .failed; status = "Sprachausgabe: \(error.localizedDescription)"
+            }
+            await rearmVoice(token: token)
+        }
+    }
+
+    func showTranscript(_ text: String) {
+        clearTranscript()
+        overlayTranscript = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func clearTranscript() {
+        transcriptGeneration = UUID()
+        transcriptExpiry?.cancel(); transcriptExpiry = nil
+        overlayTranscript = ""
+    }
+
+    func expireTranscript(after duration: Duration = .seconds(8)) {
+        guard !overlayTranscript.isEmpty else { return }
+        transcriptExpiry?.cancel()
+        let token = transcriptGeneration
+        transcriptExpiry = Task { [weak self] in
+            do { try await Task.sleep(for: duration) } catch { return }
+            guard let self, self.transcriptGeneration == token else { return }
+            self.clearTranscript()
+        }
     }
 
     static func live() -> AssistantViewModel {
@@ -54,9 +128,11 @@ import FridayAdapters
             let hex = HexService(configuration: configuration)
             let reasoning: any ReasoningEngine
             let reasoningLabel: String
+            var gemini: GeminiReasoningEngine?
             if configuration.reasoningProvider == "gemini" {
                 let name = configuration.geminiModel ?? "gemini-3.5-flash-lite"
-                reasoning = GeminiReasoningEngine(model: name, applications: applications)
+                let engine = GeminiReasoningEngine(model: name, applications: applications)
+                gemini = engine; reasoning = engine
                 reasoningLabel = name.contains("flash-lite") ? "Gemini Flash-Lite" : "Gemini Flash"
             } else {
                 reasoning = OllamaReasoningEngine(model: configuration.ollamaModel)
@@ -68,6 +144,7 @@ import FridayAdapters
                 tools: MacToolExecutor(), minimumConfidence: 0.75
             ))
             model.isLive = true; model.isReady = false
+            model.gemini = gemini
             model.reasoningLabel = reasoningLabel
             model.hex = hex; model.layaWorker = laya
             let voice = VoiceController(wake: wake)
@@ -78,7 +155,10 @@ import FridayAdapters
                 model.isRecording = phase == .recording
                 model.isWorking = phase == .recording
                 if phase == .listening { model.status = "Höre auf „Friday“ oder „Hey Friday“ · lokal" }
-                else if phase == .recording { model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme." }
+                else if phase == .recording {
+                    model.clearTranscript()
+                    model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme."
+                }
             }
             voice.onCommand = { [weak model] file, stripWake in model?.processRecording(file, stripWake: stripWake) }
             voice.onWakeRecovery = { [weak model] in model?.status = "Wake-Erkennung startet neu …" }
@@ -204,6 +284,8 @@ import FridayAdapters
         let token = UUID(); generation = token
         let shouldSpeak = speakResponses
         speech.stop()
+        clearTranscript()
+        replayText = nil; canReplayAnswer = false
         isWorking = true
         response = ""
         status = "Verarbeite …"
@@ -223,12 +305,14 @@ import FridayAdapters
                     guard generation == token else { throw CancellationError() }
                     input = submittedInput
                 }
+                showTranscript(submittedInput)
                 let result = try await router.handle(submittedInput, mode: submittedMode) { [weak self] phase in
                     await self?.showPhase(phase, token: token)
                 }
                 try Task.checkCancellation()
                 guard generation == token else { throw CancellationError() }
                 response = result.text
+                if result.route == .reasoning { replayText = result.text; canReplayAnswer = true }
                 switch result.route {
                 case .fastAction: status = isLive ? "Aktion ausgeführt" : "Schnelle Aktion · Vorschau"
                 case .reasoning: status = isLive ? "Antwort · \(reasoningLabel)" : "LLM-Fallback · Platzhalter"
@@ -255,10 +339,19 @@ import FridayAdapters
                     try? await speech.speak(response)
                 }
             }
-            if generation == token, !shuttingDown {
-                do { try await voice?.rearm() }
-                catch { wakeEnabled = false; try? await voice?.setEnabled(false); status = "Wake-Erkennung gestoppt"; response = error.localizedDescription }
-            }
+            await rearmVoice(token: token)
+            if generation == token { expireTranscript() }
+        }
+    }
+
+    private func rearmVoice(token: UUID) async {
+        guard generation == token, !shuttingDown else { return }
+        do { try await voice?.rearm() }
+        catch {
+            guard generation == token, !shuttingDown else { return }
+            wakeEnabled = false; try? await voice?.setEnabled(false)
+            guard generation == token else { return }
+            status = "Wake-Erkennung gestoppt"; response = error.localizedDescription
         }
     }
 
@@ -275,9 +368,11 @@ import FridayAdapters
 
     func cancel() {
         guard !shuttingDown else { return }
+        let speechOnly = phase == .speaking
         task?.cancel()
         microphoneTask?.cancel()
         speech.stop()
+        clearTranscript()
         isTrainingWake = false
         clearTrainingFiles()
         if voice != nil {
@@ -285,8 +380,7 @@ import FridayAdapters
             isWorking = true
             let pendingTask = task
             task = Task {
-                await hex?.stop()
-                await layaWorker?.stop()
+                if !speechOnly { await hex?.stop(); await layaWorker?.stop() }
                 await pendingTask?.value
                 guard generation == token, !shuttingDown else { return }
                 if !wakeEnabled { try? await voice?.setEnabled(false) }
@@ -328,6 +422,7 @@ import FridayAdapters
 
     func shutdown() async {
         shuttingDown = true
+        clearTranscript()
         clearTrainingFiles()
         generation = UUID()
         startupTask?.cancel(); microphoneTask?.cancel(); task?.cancel(); speech.stop()

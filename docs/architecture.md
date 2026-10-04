@@ -53,13 +53,24 @@ wartet auf Wiedergabeende; einfache Aktionen bleiben stumm.
 Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
 recording, transcribing, deciding, acting, reasoning, speaking, failed. Die native
 ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündelt.
+Idle/listening pausieren den 2D-Ring; recording animiert denselben Ring. Acting
+nutzt kreisende working-Punkte, reasoning die verschachtelnde solving-Animation. Der
+transparente Orb zeigt im Idle keinen Text. Die ViewModel hält das erkannte
+Hex-Transkript und einen abbrechbaren Acht-Sekunden-Timer. Generation-Guards
+verhindern das Löschen neuer Befehle. Das Panel passt seine Größe an den Text an,
+der rechte obere Anker bleibt gleich. Hex-Transkripte sind nach Aufnahmeende verfügbar.
+Replay verwendet ausschließlich den letzten Reasoning-Antworttext, suspendiert
+Wake und wartet auf TTS-Ende. Busy-State und Generation schützen vor Überschneidung.
 
 GeminiReasoningEngine verwendet die GenerateContent-API mit Header-Authentifizierung,
 12-Sekunden-Deadline pro Aufruf und finalem Antworttext ohne Thinking-Parts. Bei
 Überlastung wechselt es zwischen primärem Gemini 3.5 Flash-Lite (MINIMAL) und
 Gemini 3.8 Flash (LOW); das überlastete primäre Modell pausiert für zwei Minuten.
 Der persönliche API-Schlüssel kommt einmal pro Engine-Sitzung außerhalb des
-UI-Threads aus dem macOS-Schlüsselbund und bleibt nur im Arbeitsspeicher.
+UI-Threads aus der lokalen Credentials-Datei und wird im Arbeitsspeicher gecacht.
+Der Store liegt außerhalb von Repo/App-Bundle mit restriktiven Dateirechten.
+Beim Speichern eines neuen Schlüssels verwirft die UI den Cache, einschließlich
+eines Guards gegen ältere noch laufende Leseoperationen. Kein Keychain-Aufruf im App-Code.
 HTTP-Fehler werden sanitisiert. Kurze, vorlesbare Antworten sind der Standard;
 Fragen werden nicht automatisch in Notizen umgewandelt.
 Safari-Suchen öffnen einen URL-encoded Google-Suchlink ausdrücklich mit Safari;

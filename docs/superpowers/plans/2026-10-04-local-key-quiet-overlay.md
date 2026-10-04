@@ -15,18 +15,19 @@ modify `Reasoning/GeminiReasoningEngine.swift`, `FridayApp/AssistantViewModel.sw
 `FridayApp/AssistantView.swift`, `scripts/configure-gemini.py`, `.gitignore`;
 tests in `apps/macos/Tests/FridayAdaptersTests/LocalGeminiKeyStoreTests.swift`.
 
-- [ ] Add tests: temporary-directory store; missing-key error; 0700 directory and
+- [x] Add tests: temporary-directory store; missing-key error; 0700 directory and
   0600 file; overwriting key; invalid/empty input preserves previous key.
-- [ ] Run `swift test --package-path apps/macos --configuration release --filter LocalGemini`;
+- [x] Run `swift test --package-path apps/macos --configuration release --filter LocalGemini`;
   expect failure before store exists.
-- [ ] Implement a Sendable store with injectable directory, `load`, `save`,
-  `isConfigured`. Trim input, reject whitespace inside the key and excessive length.
+- [x] Implement a Sendable store with injectable directory, `load`, `save`,
+  `isConfigured`. Trim input, reject whitespace inside the key, non-ASCII and
+  excessive length. These are syntax checks; do not claim server-side validation.
   Save atomically inside the private directory, never include key content in errors.
-- [ ] Replace the default Gemini loader with this store. Add async cache invalidation
+- [x] Replace the default Gemini loader with this store. Add async cache invalidation
   with a generation token so an old in-flight load cannot restore an invalidated key.
-- [ ] Add a blank SecureField and explicit save button, clear the field after success,
+- [x] Add a blank SecureField and explicit save button, clear the field after success,
   disable edits while busy, invalidate the live engine cache after saving.
-- [ ] Change the CLI configurator to the same local format. Migrate existing local
+- [x] Change the CLI configurator to the same local format. Migrate existing local
   Keychain entry once with captured output, then verify the app source contains no
   `SecItemCopyMatching` call and the real key is absent from staged files.
 
@@ -36,15 +37,17 @@ Files: `FridayApp/AssistantOrb.swift`, `FridayApp/AssistantViewModel.swift`,
 `FridayApp/MascotPanel.swift`, `FridayApp/AssistantView.swift`;
 tests in `FridayAppTests/AssistantViewModelTests.swift`.
 
-- [ ] Add transcript state and tests for setting recognized text, clearing on next
+- [x] Add transcript state and tests for setting recognized text, clearing on next
   recording, and timed clearing after completion.
-- [ ] Pause the orb in idle/listening; map recording to the slow searching sphere.
+- [x] Pause the orb in idle/listening; recording animates the same 2D breathing
+  ring. Acting remains working; reasoning solving.
   Remove animateIdle overrides and Idle label text in the floating view.
-- [ ] Expand panel to 280×164 while retaining the orb's right edge. Add an upper-right
+- [x] Expand panel to 280×164 for transcripts, shrink to 96×96 in idle while
+  retaining the orb's right edge. Add an upper-right
   aligned text bubble below the orb with max three lines and tail truncation.
-- [ ] On recognized audio update the transient transcript before routing. Use a
+- [x] On recognized audio update the transient transcript before routing. Use a
   cancellable eight-second task with generation guard to prevent stale clearing.
-- [ ] Render state variants to PNG with ImageRenderer for visual inspection. Do not
+- [x] Render state variants to PNG with ImageRenderer for visual inspection. Do not
   automate the existing Friday GUI.
 
 ## Task 3: Audible answers and replay
@@ -52,19 +55,24 @@ tests in `FridayAppTests/AssistantViewModelTests.swift`.
 Files: `FridayApp/AssistantViewModel.swift`, `FridayApp/AssistantView.swift`,
 `FridayAppTests/AssistantViewModelTests.swift`.
 
-- [ ] Add meaningful tests: replay reads the saved reasoning answer without calling
-  reasoning a second time; computer results have no replay; cancellation finishes playback.
-- [ ] Preserve default speakResponses=true. Store replay text only for reasoning
-  answers. Add replay action using the existing voice suspend/rearm and speech.stop flow.
-- [ ] Add „Noch einmal vorlesen“ only when a reasoning answer is available.
-- [ ] Run full Swift/Python suites; real Gemini request from LocalGeminiKeyStore;
+- [x] Add meaningful tests: replay reads the saved reasoning answer without calling
+  reasoning a second time; computer results have no replay; cancellation finishes
+  playback; replay while another playback is pending does not overlap or reset it.
+- [x] Preserve default speakResponses=true. Store replay text only for reasoning
+  answers. Guard replay with !isWorking and !isRecording. Give replay a new generation
+  token and check it after awaits and before cleanup/rearm. Use existing voice suspend/
+  rearm and speech.stop flow. Ignore completion/cancellation from stale generations.
+- [x] Add „Noch einmal vorlesen“ only when a reasoning answer is available.
+- [x] Run full Swift/Python suites; real Gemini request from LocalGeminiKeyStore;
   actual SystemSpeechOutput playback completion with bounded timeout.
 
 ## Task 4: Build and publish
 
-- [ ] Update README/integrations to local key entry, transcript timing, static Idle,
+- [x] Update README/integrations to local key entry, transcript timing, static Idle,
   and voice replay. Bump CFBundleVersion.
-- [ ] Run `git diff --check`; build with `FRIDAY_APP_PATH` in ~/Applications staging;
+- [x] Run `git diff --check`; build with `FRIDAY_APP_PATH` in ~/Applications staging;
   verify stable Apple signature, install atomically while keeping previous build.
-- [ ] Inspect staged paths and scan in memory for the actual local key without
+- [x] Inspect staged paths and scan in memory for the actual local key without
   printing it. Commit and push main, then report app path, validation and live-ASR limit.
+
+Verified: 61 Swift tests, 85 Python tests; actual Gemini response from local store in 680 ms; native speech playback completed; overlay preview rendered; Apple signature verified.

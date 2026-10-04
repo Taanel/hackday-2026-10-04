@@ -10,3 +10,4 @@ dist/
 *.xcuserstate
 xcuserdata/
 models/
+gemini-api-key.txt

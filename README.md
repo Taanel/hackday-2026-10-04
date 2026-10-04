@@ -27,14 +27,18 @@ installiertes Modell. Die Auswahl steht in `~/Library/Application Support/Friday
 python3 scripts/configure-gemini.py
 ```
 
-Der persönliche Schlüssel wird im macOS-Schlüsselbund gespeichert. `runtime.json`
-enthält nur Provider/Modell; API-Keys werden nicht in Git gespeichert. Beim ersten
-LLM-Aufruf kann macOS nach Schlüsselbundzugriff für Friday fragen. Mit dem Mac-
-Anmeldepasswort „Immer erlauben“ wählen. Der Schlüssel wird danach nur im Arbeitsspeicher
-dieser App-Sitzung gehalten. Ad-hoc signierte Test-Builds können nach jedem Update
-erneut fragen. Für dauerhafte Wiedererkennung eine vorhandene Apple-Code-Signing-
-Identität mit `FRIDAY_SIGNING_IDENTITY` beim Bauen auswählen oder deren Namen/Hash
-in `~/Library/Application Support/Friday/signing-identity` speichern. Nur der
+Unten im Friday-Fenster den Schlüssel im Feld „Gemini API-Schlüssel“ eintragen und
+„Lokal speichern“ wählen. Alternativ verwendet das CLI oben denselben lokalen Store.
+Die Datei liegt außerhalb von Repo und App-Bundle unter
+`~/Library/Application Support/Friday/Credentials/gemini-api-key.txt` (0600,
+Ordner 0700). Die App fragt für Gemini nicht mehr nach dem Schlüsselbund. Das Feld
+bleibt nach dem Speichern leer; ein neuer Wert ersetzt den bisherigen und gilt bei
+der nächsten Anfrage. Leere oder formal fehlerhafte Werte werden abgelehnt; die
+Autorisierung des Schlüssels bei Google wird erst beim API-Aufruf geprüft.
+`runtime.json` enthält nur Provider/Modell. API-Keys werden nicht in Git gespeichert.
+Für eine stabile App-Identität kann `FRIDAY_SIGNING_IDENTITY` beim Bauen gesetzt oder
+deren Name/Hash in `~/Library/Application Support/Friday/signing-identity` gespeichert
+werden. Nur der
 Reasoning-Pfad sendet den Anfrage-Text an Google; Hex, Wake und Laya bleiben lokal.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
@@ -59,11 +63,18 @@ Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antwo
 Alternativ „Sprechen“ drücken oder einen Befehl als Text eingeben. „Abbrechen“
 stoppt die laufende Verarbeitung; das Overlay hat während der Aufnahme eine Stop-Taste.
 Wake ist standardmäßig aus und pausiert während Aufnahme, Verarbeitung und TTS.
+Im Idle und bei Wake-Bereitschaft bleibt der Orb als Ring stehen, ohne Beschriftung.
+Während der Aufnahme wobbelt derselbe 2D-Ring. Ausführung zeigt kreisende Punkte;
+Gemini zeigt die verschachtelnde solving-Animation. Nach Hex erscheint der erkannte Befehl
+am Overlay, bis acht Sekunden nach Ende der Verarbeitung. Beim nächsten Befehl wird
+er entfernt. Das ist kein Wort-für-Wort-Live-Transkript.
 LLM-Antworten werden standardmäßig mit der kostenlosen lokalen macOS-Sprach-API
 vorgelesen und direkt im Fenster angezeigt; der Schalter kann die Sprachausgabe
 ausschalten. Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard.
 Bei Überlastung übernimmt Gemini 3.8 Flash mit niedrigem Thinking. Das
 überlastete Modell wird danach zwei Minuten lang nicht erneut angefragt.
+„Noch einmal vorlesen“ wiederholt die letzte LLM-Antwort, ohne eine neue Gemini-
+Anfrage. Während Aufnahme, Verarbeitung oder Wiedergabe ist Replay gesperrt.
 
 „Wechsel Schreibtisch“, „Wechsle zum nächsten Schreibtisch“ und „Wechsel Schreibtisch
 nach links“ senden Control + Pfeiltaste. Dafür „Computersteuerung erlauben“ anklicken

@@ -8,8 +8,11 @@ Sprachausgabe angefordert. Diese konkret vorgegebenen Änderungen sind der Umfan
 
 Ein SecureField unten im Friday-Fenster speichert den Schlüssel unter
 `~/Library/Application Support/Friday/Credentials/gemini-api-key.txt`. Dieser
-Ordner erhält Modus 0700, die Datei 0600. Ein leerer oder ungültiger Wert ersetzt
-keinen vorhandenen Schlüssel. Der Inhalt erscheint weder im Fenster noch in
+Ordner erhält Modus 0700, die Datei 0600. Ein leerer oder formal fehlerhafter Wert
+(Whitespaces, nicht-ASCII, über 512 Zeichen) ersetzt keinen vorhandenen Schlüssel.
+Das Speichern prüft nicht die Gültigkeit bei Google; abgelaufene oder nicht
+autorisierte Schlüssel werden erst beim API-Aufruf abgelehnt.
+Der Inhalt erscheint weder im Fenster noch in
 Fehlern, Logs, Commits oder dem App-Bundle. Der Schlüsselbund wird im App-Code nicht
 mehr verwendet. Der vorhandene Schlüssel wird einmal lokal migriert, ohne ihn
 auszugeben. Hartcodieren würde bei Updates erneutes Bauen verlangen; die lokale
@@ -20,8 +23,8 @@ damit die nächste Anfrage den neuen Wert verwendet. Speichern ist während lauf
 Anfragen deaktiviert. Ein fehlender Schlüssel verweist auf das Eingabefeld.
 
 Idle und Wake-Bereitschaft zeigen einen statischen gepunkteten Ring. Erst die
-Aufnahme nach Wake oder manuellem Start zeigt eine langsam rotierende Punktkugel
-(ThinkingOrbs searching), ohne die bisherige Wellenbewegung. Aktive Verarbeitung
+Aufnahme nach Wake oder manuellem Start animiert denselben 2D-Ring (breathing).
+Ausführung zeigt working, Gemini die verschachtelnde solving-Animation. Aktive Verarbeitung
 behält ihre bisherigen unterscheidbaren Animationen. Keine Idle-Beschriftung.
 
 Ein kleines, maximal drei Zeilen langes Transkript erscheint am transparenten
@@ -39,6 +42,9 @@ standardmäßig aktive Schalter gesetzt ist. Ein „Noch einmal vorlesen“-Butt
 der Antwort wiederholt ausschließlich die zuletzt erhaltene LLM-Antwort, ohne
 Gemini erneut anzufragen. Währenddessen bleibt Wake pausiert; Abbrechen beendet
 die Stimme und rearmt Wake. Computeraktionen und Diktat bleiben stumm.
+Replay ist während Aufnahme, Verarbeitung und Wiedergabe deaktiviert und im
+Handler zusätzlich gesperrt. Jede Wiedergabe besitzt einen Generation-Token;
+alte Abschlüsse dürfen weder einen neuen Auftrag überschreiben noch Wake rearmen.
 
 ## Prüfung
 
@@ -47,5 +53,5 @@ Cache-Invalidierung; Wiederholung ohne erneutes Reasoning und Abbruch der Stimme
 vorübergehende Transkript-Anzeige und Entfernung beim nächsten Befehl. Bestehende
 Routing- und Wake-Tests bleiben erhalten. Ein echter Gemini-Aufruf verwendet den
 lokalen Store ohne Keychain; ein hörbarer Sprachtest bestätigt das Ende der
-Wiedergabe. Ein Renderbild prüft statischen Ring, Aufnahme-Kugel und Textposition
+Wiedergabe. Ein Renderbild prüft statischen Ring, Aufnahme-Ring und Textposition
 ohne Bedienung der laufenden App. Release-Build, Signatur und Git-Diff werden geprüft.
