@@ -1,11 +1,7 @@
 # Integrationen
 
-Projektquellen am 04.10.2026 geprüft. Alle echten Adapter sind noch offen.
-Die App verdrahtet derzeit die Demo-Provider in `AssistantViewModel.swift`.
-
-Die jetzt ausgewählten lokalen Modelle und Laufzeiten stehen im
-[Integrationsplan](superpowers/plans/2026-10-04-local-voice-stack.md).
-Die Hinweise unten beschreiben weiterhin die vorhandenen Anschlusspunkte.
+V1 nutzt reale lokale Adapter. Das Setup und die konkreten Versionen stehen in
+[README](../README.md); Modellrevisionen werden lokal in models.json gespeichert.
 
 ## Hex: Diktat / Speech-to-Text
 
@@ -15,21 +11,15 @@ Hex unterstützt lokales Diktat. Das TypeScript-SDK nutzt einen nativen Helper;
 es ist keine direkt importierbare Swift-Bibliothek. Laut SDK-Dokumentation muss
 der einbettende Consumer den kompatiblen nativen Helper derzeit selbst bereitstellen.
 
-Anschlusspunkt: `HexSpeechToText.transcribe(audioFile:)`.
-Für die native App planen wir eine kleine Swift-Bridge zum lokalen Helper und
-dessen IPC/Loopback-Protokoll. Eine TypeScript-Sidecar wäre eine Alternative,
-falls wir das bestehende SDK direkt nutzen möchten. Vor der Wahl die konkrete
-Upstream-Version und das [Service-Protokoll](https://github.com/anomalyco/hex/blob/main/docs/specs/local-transcription-service.md) prüfen.
-Aufnahme, Deutsch-Modellwahl, Berechtigungen und temporäre Dateien gehören zur
-Friday-Integration. Noch kein Helper wird heruntergeladen oder gestartet.
+HexService startet das originale ARM64-Release 2.1.24 mit `service --embedded`,
+prüft API 2 und verwendet den lokalen Bearer-authentifizierten HTTP-Service.
+Das Setup installiert Whisper large-v3-turbo für Deutsch; Runtime-Downloads sind aus.
 
 ## „Hey Friday“
 
-Anschlusspunkt: `WakeWordDetector.start(phrase:)` liefert Aktivierungsereignisse.
-Die Erkennung braucht einen echten lokalen Audio-Detector; ein Textvergleich
-nach STT wäre kein dauerhaftes Wake-Word-System. Hex dokumentiert eigene
-[Voice Commands](https://github.com/anomalyco/hex/blob/main/docs/features/commands.md);
-ob wir sie verwenden oder einen unabhängigen Detector anschließen, bleibt offen.
+Moonshine Tiny Streaming verarbeitet kontinuierlich lokale AudioInput-Samples
+und meldet die vollständige Phrase „Hey Friday“. Die englischen offenen Tiny-Gewichte
+werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der nativen App.
 Abnahme: „Hey Friday“ aktiviert den Assistenten, Stille/andere Phrasen nicht;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
 
@@ -41,7 +31,8 @@ generiertem Antworttext. Es passt damit zum Routing zwischen vordefinierten Akti
 
 Anschlusspunkt: `LayaDecisionEngine.decide(text:)`.
 Kandidaten: Programm öffnen, Notiz erstellen, Reasoning, unbekannt.
-Die lokale Laufzeit (Python-Service, Core ML oder andere Bridge) wird später festgelegt.
+Der Python-Worker verwendet [laya-coreml](https://github.com/mizorewww/laya-coreml) 0.2.0
+und die gepinnten multilingual Core-ML-Gewichte. Swift kommuniziert über JSON-Zeilen.
 Deutschqualität, Konfidenz und Latenz mit realen Mac-Befehlen messen.
 Argumente separat extrahieren und erlaubte App-IDs/Tool-Schemata validieren;
 ein ausgewählter Intent ist noch kein ausführbarer Terminalbefehl.
@@ -50,17 +41,15 @@ ein ausgewählter Intent ist noch kein ausführbarer Terminalbefehl.
 
 Anschlusspunkt: `ReasoningEngine.respond(to:)`.
 `ai.py` zeigt den vorhandenen Ollama-Aufruf mit `llama3.2` als Startpunkt.
-Für die macOS-App folgt ein Swift-Adapter mit Fehlerbehandlung, Deadline und
-Abbruch. Ein anderer lokaler oder gehosteter Provider lässt sich dahinter austauschen.
+OllamaReasoningEngine verwendet die lokale Chat-API mit Fehlerbehandlung, Deadline und Abbruch. Ein anderer lokaler oder gehosteter Provider lässt sich dahinter austauschen.
 Recherchen benötigen zusätzlich Such-/Browserwerkzeuge und Quellen.
 
 ## Computer Use
 
 Anschlusspunkte: `ToolExecutor.execute(_:)` und `TextOutput.insertAtCursor(_:)`.
-Geplant: App-Start per Bundle-ID, Notizablage, Terminal-Prozesse und später
-Accessibility-basierte UI-Aktionen. Das Terminal erhält ausführbaren Pfad,
-Argumente und Arbeitsverzeichnis als getrennte Felder. Die Vorschau ist kein
-echter Executor und vergibt keine Systemberechtigungen.
+Umgesetzt: bekannte App-Starts per Bundle-ID und Markdown-Notizablage.
+Offen: Terminal-Prozesse und Accessibility-basierte UI-Aktionen. Das Terminal erhält ausführbaren Pfad,
+Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt App- und Notizaktionen aus; freie Terminalbefehle lehnt V1 ab.
 
 ## Sprachausgabe
 

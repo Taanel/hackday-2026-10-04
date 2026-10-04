@@ -1,61 +1,23 @@
 # Roadmap
 
-Die folgenden Schritte bauen auf dem Scaffold auf. Echte Provider, Wake-Word
-und Computeraktionen sind noch nicht implementiert.
+## Erste testbare Version umgesetzt
 
-Die konkrete Auswahl der lokalen Modelle und Provider, Dateipfade und die
-Reihenfolge stehen im [Integrationsplan](superpowers/plans/2026-10-04-local-voice-stack.md).
+- [x] PNG-Maskottchen, Menüleiste und native Thinking Orbs.
+- [x] Zentrale Aufnahme, Stop/Abbruch und lokales deutsches Hex-Modell.
+- [x] „Hey Friday“ mit Moonshine, Opt-in und Pause während Verarbeitung/TTS.
+- [x] Lokale Laya-Inferenz, feste Intents und geprüfte Aktionsargumente.
+- [x] Echte App-Starts und Markdown-Notizspeicherung.
+- [x] Ollama-Fallback und optionales System-TTS ausschließlich für LLM-Antworten.
+- [x] Gepinntes Setup, Swift-/Python-Tests und signierter Entwicklungsbuild.
 
-## 1. Oberfläche und erstes Diktat
+## Als Nächstes
 
-- [x] Native App, Menüleiste, Panel oben rechts und Demo-Eingabe.
-- [x] Native Thinking Orbs in Fenster und Panel; Vorschau aller neun Animationen.
-- [ ] Team-PNG unter `Sources/FridayApp/Resources/mascot.png` hinzufügen.
-- [ ] Mikrofonaufnahme mit sichtbarem Aufnahmezustand und Abbruch anbinden.
-- [ ] Hex-Bridge und lokales Deutsch-Modell integrieren.
-- [ ] Hotkey und `TextOutput` für das aktive Textfeld ergänzen.
+- [ ] Live-Mikrofon/Wake auf verschiedenen Macs und mit deutscher Aussprache testen.
+- [ ] Deutsche Befehle evaluieren; Konfidenzgrenze und Silenz-Endpunkt kalibrieren.
+- [ ] Diktat-Hotkey und Einfügen in das aktive Textfeld.
+- [ ] Terminal-Tools und Accessibility-basierte Computerbedienung.
+- [ ] Web-Recherche mit Browser-/Suchwerkzeugen und Quellen.
+- [ ] Schnellere/hochwertige TTS-Option, bevorzugt mit offenen Gewichten.
+- [ ] Stabile Codesign-Identität, Berechtigungs-Onboarding und notarisiertes Release.
 
-Abnahme: Taste drücken, sprechen, stoppen; deutscher Text erscheint am Cursor.
-Abbruch hinterlässt keinen eingefügten Text und keine offene Aufnahme.
-
-## 2. „Hey Friday“
-
-- [ ] Lokalen Detector wählen und `WakeWordDetector` implementieren.
-- [ ] Opt-in, deaktivierbare Erkennung und Ruhemodus ergänzen.
-- [ ] Wake-Erkennung während Aufnahme/Sprachausgabe pausieren.
-
-Abnahme: Wake-Phrase startet eine Anfrage; Friday aktiviert sich nicht durch die eigene Stimme.
-
-## 3. Laya und schnelle Computeraktionen
-
-- [x] Decision-Vertrag, Konfidenzprüfung und Tool-Vorschau.
-- [ ] Echte lokale Laya-Inferenz inklusive Warm-up anbinden.
-- [ ] Deutsche Beispielsätze sammeln; Intents und Konfidenz evaluieren.
-- [ ] App-Namen auf erlaubte Bundle-IDs abbilden; Notizargumente extrahieren.
-- [ ] App-Start und Notizspeicherung implementieren.
-- [ ] Terminal-Executor mit sichtbarer Aktion, erlaubten Prozessen und Bestätigung
-  für destruktive Aktionen ergänzen; UI-Automatisierung separat anbinden.
-
-Abnahme: „Öffne Safari“ öffnet Safari; eine unklare Anfrage führt zum Fallback.
-„Notiz: …“ speichert genau den gewünschten Inhalt.
-
-## 4. LLM-Fallback und Recherche
-
-- [x] Reasoning-Vertrag und Fallback bei unsicheren/fehlgeschlagenen Entscheidungen.
-- [ ] Ollama oder anderen Provider anbinden; Deadline und Abbruch ergänzen.
-- [ ] Planung mit tatsächlichem Modell prüfen.
-- [ ] Such-/Browserwerkzeug für Recherche und verlinkte Quellen anbinden.
-
-Abnahme: „Plane XY“ liefert einen Plan; „Recherchiere XY“ liefert eine Antwort mit Quellen.
-
-## 5. Sprachschleife und Verteilung
-
-- [x] Optionales Vorlesen von LLM-Antworten; Computeraktionen/Diktat bleiben stumm.
-- [x] System-TTS wartet auf Wiedergabeende; Abbrechen stoppt die Ausgabe.
-- [ ] Vollständigen Coordinator mit Wake-/Aufnahme-Lebenszyklus verbinden.
-- [ ] Bei Bedarf ElevenLabs oder lokale TTS-Engine anschließen.
-- [ ] Aufnahme-, Inferenz-, Tool- und TTS-Latenzen messen.
-- [ ] Berechtigungs-Onboarding, stabile Codesign-Identität und notarisiertes Release.
-
-Abnahme: komplette Sprachschleife funktioniert ohne parallele Aufnahmen;
-Fehler und Abbrüche stellen den Ruhezustand wieder her.
+Das V1-Design steht unter [Friday V1](superpowers/specs/2026-10-04-friday-v1-design.md).

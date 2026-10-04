@@ -6,6 +6,8 @@ extension AssistantPhase {
     var orbState: OrbState {
         switch self {
         case .idle: .breathing
+        case .listening, .recording: .listening
+        case .transcribing: .weaving
         case .deciding: .connecting
         case .acting: .working
         case .reasoning: .solving
@@ -17,6 +19,9 @@ extension AssistantPhase {
     var label: String {
         switch self {
         case .idle: "Bereit"
+        case .listening: "Hey Friday aktiv"
+        case .recording: "Höre deinen Befehl"
+        case .transcribing: "Verstehe Sprache"
         case .deciding: "Entscheide"
         case .acting: "Führe aus"
         case .reasoning: "Denke nach"

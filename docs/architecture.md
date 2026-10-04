@@ -1,102 +1,51 @@
-# Architektur
+# Architektur der ersten Version
 
-Friday besteht aus einer nativen macOS-Oberfläche, einem unabhängigen Router
-und austauschbaren Providern. Die Demo funktioniert ohne Server und Mikrofon.
+FridayApp verdrahtet reale lokale Provider im gemeinsamen AssistantViewModel.
+Die Demo-Provider sind ausschließlich für isolierte Tests verfügbar.
 
 ```mermaid
 flowchart TD
-    Activation[Button / Hotkey / Hey Friday] --> Capture[AudioCapture]
-    Capture --> STT[SpeechToText: Hex]
-    STT --> Mode{Expliziter Modus}
-    Mode -->|Diktat| Insert[TextOutput: aktive App]
-    Mode -->|Assistent| Decision[FastDecisionEngine: Laya]
-    Decision -->|Sichere Aktion + gültige Argumente| Tools[ToolExecutor: macOS / Terminal]
-    Decision -->|Reasoning / unbekannt / unsicher / Providerfehler| LLM[ReasoningEngine]
-    Tools --> Complete[Sichtbarer Abschluss: ohne TTS]
-    LLM --> Reply[Finaler Antworttext]
-    Reply --> TTS[Optional: SpeechOutput]
+    Wake[Hey Friday: Moonshine lokal] --> Capture[Zentrale AudioInput / Ringpuffer]
+    Button[Sprechen] --> Capture
+    Capture --> Hex[Hex: deutsches WAV zu Text]
+    Hex --> Laya[Laya Core ML: Intent und Konfidenz]
+    Text[Texteingabe] --> Laya
+    Laya -->|gültige eindeutige Aktion| Tools[MacToolExecutor: App oder Notiz]
+    Laya -->|komplex, unklar oder ungültig| LLM[Ollama lokal]
+    Tools --> Done[Sichtbarer Abschluss]
+    LLM --> Reply[Antworttext]
+    Reply --> TTS[Optional: System-TTS]
 ```
 
-Die Aktivierung, Audioaufnahme und Texteingabe sind zukünftige Integrationen.
-Aktuell beginnt der Ablauf bei manueller Texteingabe. Der Router liefert beim
-Diktat nur den Text zurück; erst ein zukünftiger TextOutput fügt ihn am Cursor ein.
+AudioInput ist der einzige Mikrofonbesitzer. Es konvertiert auf 16-kHz-Mono,
+puffert acht Sekunden und schickt Samples an den Wake-Worker. Nach einem Wake
+beginnt die Aufnahme am gemeldeten Sample-Offset, einschließlich bereits gepufferter
+Sprache. Eine Sprechpause beendet den Befehl; spätestens nach 30 Sekunden endet er.
+Hex erhält PCM16-WAV-Dateien über den authentifizierten Loopback-Service.
 
-## Verantwortlichkeiten
+Laya wählt open_app, create_note, reasoning oder unknown. Ein separater Parser
+akzeptiert nur vollständige unterstützte Aktionen und bekannte App-Aliasse.
+Die Live-Konfidenzgrenze 0.75 ist vorläufig: die ersten deutschen Inferenztests
+rechtfertigen sie für den Prototyp; weitere Kalibrierung bleibt offen. Ungültige,
+trunkierte oder unsichere Entscheidungen führen zum LLM. Ein Toolfehler wiederholt
+keine Aktion. Diktat umgeht das Routing und zeigt nur den Text an.
 
-| Vertrag | Aufgabe | Umsetzung im Scaffold |
-| --- | --- | --- |
-| `AudioCapture` | Aufnahme starten, stoppen, abbrechen; Audio-Datei liefern | Schnittstelle |
-| `SpeechToText` | Audio-Datei → Transkript | `HexSpeechToText` meldet „nicht angebunden“ |
-| `WakeWordDetector` | Aktivierungsereignisse aus lokaler Erkennung | unkonfigurierter Slot |
-| `FastDecisionEngine` | Text → typisierte Entscheidung + Konfidenz | Demo-Regeln; Laya-Slot |
-| `ReasoningEngine` | komplexe Anfrage → Antwort | Demo-Platzhalter; Provider-Slot |
-| `ToolExecutor` | typisierte Aktion → Ergebnis | `PreviewToolExecutor` |
-| `TextOutput` | Diktat in das aktive Textfeld einfügen | Schnittstelle |
-| `SpeechOutput` | Antwort vorlesen oder stoppen | System-TTS; ElevenLabs-Slot |
+JSONLineProcess besitzt den jeweiligen direkten Helper-Prozess, wartet auf Ready,
+ordnet Antworten per UUID zu und beendet Helper bei Deadline oder Abbruch.
+Stop wartet auf das Prozessende, bevor ein neuer Prozess startet. Wake-Kontrollen
+warten auf ACK; Generationen verwerfen alte Ereignisse. Native Python-Ausgabe ist
+vom JSON-Kanal getrennt. Hex-Bearer-Tokens werden nicht geloggt.
 
-`FridayApp` kennt die konkrete Verdrahtung in `AssistantViewModel`.
-`FridayCore` importiert keine Anbieter-SDKs, SwiftUI oder AppKit.
-`FridayAdapters` kapselt spätere native Helper, Modell-Clients und Betriebssystemzugriffe.
+Wake ist opt-in. Während Aufnahme, Hex, Laya, Tool, LLM und TTS ist es pausiert.
+Nach Abschluss wird es erneut aktiviert, sofern eingeschaltet. Ohne Wake wird das
+Mikrofon nach manueller Aufnahme gestoppt. Beenden sperrt neue Starts, cancelt
+laufende Tasks, wartet deren Ende ab und stoppt alle eigenen Helper.
 
-## Routing
+NSWorkspace öffnet bekannte installierte Bundle-IDs. Notizen werden atomar im
+Friday-Ordner gespeichert. Terminal- und Accessibility-Aktionen sowie Cursor-Diktat
+sind noch offen. Ollama besitzt keine Web- oder Computerwerkzeuge; System-TTS wird
+nur für angeforderte LLM-Antworten genutzt und wartet auf Wiedergabeende.
 
-Der Eingabemodus ist explizit. Diktat darf nicht versehentlich Programme öffnen.
-Im Assistentenmodus nimmt der Router ausschließlich eine Aktion mit gültigen
-Argumenten und ausreichender Konfidenz an. `0.85` ist ein vorläufiger, über den
-Konstruktor einstellbarer Wert; echte Laya-Werte müssen mit unseren Befehlen
-evaluiert und kalibriert werden.
-
-Nicht endliche oder außerhalb von 0–1 liegende Werte, unbekannte Intents,
-fehlende Argumente und Klassifikationsfehler führen zum Reasoning-Provider.
-Abbruch führt zu keiner neuen Anfrage. Tool-Fehler werden sichtbar weitergegeben;
-der Router wiederholt eine möglicherweise bereits ausgeführte Aktion nicht über das LLM.
-
-Der Laufzeitablauf ist „Hey Friday“ → Hex → Laya → Computeraktion oder LLM.
-Nur die LLM-Antwort kann anschließend bei Bedarf vorgelesen werden. Einfache
-Computeraktionen und Diktat lösen niemals TTS aus. Der Router meldet über
-`onPhase` Entscheidung und die gewählte Route vor dem jeweiligen Provideraufruf.
-
-Laya entscheidet über feste Kandidaten. Ein separater Parser löst beispielsweise
-„Safari“ zu einer erlaubten Bundle-ID auf oder extrahiert den Notiztext. Die
-gemeinsame Argumentprüfung ist nur strukturell; der echte Executor muss zusätzlich
-zulässige Programme, Pfade, Aktionen und Bestätigungen prüfen.
-
-## Computer Use und Terminal
-
-`ToolRequest` bietet `openApplication`, `createNote` und `runExecutable`.
-Terminalaktionen tragen einen ausführbaren Pfad, ein Argument-Array und ein
-Arbeitsverzeichnis. Eine künftige `Process`-Implementierung übernimmt diese
-Felder direkt; Transkripte werden nicht in einen Shell-String eingesetzt.
-Für UI-Automatisierung kommt später ein separater Accessibility-Adapter hinzu.
-
-Der Scaffold führt keine dieser Aktionen aus. Aufnahmeberechtigungen,
-Accessibility und gegebenenfalls Automation werden bei der echten Integration
-an der jeweiligen Funktion angefordert.
-
-## Lebenszyklus der Sprachintegration
-
-Geplante Zustände: idle → listening → transcribing → deciding → Verzweigung:
-acting → idle oder reasoning → optional speaking → idle. Wake-Word ist opt-in.
-Während Aufnahme und TTS muss die
-Wake-Erkennung pausieren, damit Friday nicht auf sich selbst reagiert. Alle
-Abbrüche müssen Mikrofon, temporäre Audiodateien und aktive Helper freigeben.
-`SpeechOutput.speak` wartet auf Wiedergabeende und wirft bei Stop/Abbruch einen
-`CancellationError`. System-TTS verwendet dafür den AVSpeechSynthesizer-Delegate.
-
-## Thinking Orbs
-
-Die native SwiftUI-Version von Libraries.dev liegt als gepinntes lokales Paket
-unter `apps/macos/Vendor/ThinkingOrbsKit`; MIT-Lizenz und Upstream-Revision sind
-beigefügt. `AssistantOrb` bildet echte Phasen auf dessen Animationen ab:
-Bereit/breathing (statisch), Entscheidung/connecting, Aktion/working,
-LLM/solving, Sprachausgabe/listening und Fehler/shaping (statisch mit Fehlersymbol).
-Fenster und schwebendes Panel beobachten dasselbe `AssistantViewModel` des
-App-Delegates. Die gesonderte Orb-Vorschau zeigt alle neun Originalanimationen.
-Reduce Motion und Hell-/Dunkelmodus werden vom nativen Renderer berücksichtigt.
-
-## Offene Integrationsgrenzen
-
-Ein Reasoning-LLM allein recherchiert noch nicht im Web. Recherchen benötigen
-zusätzliche Browser-/Suchwerkzeuge und Quellen in der Antwort. Provider-Timeouts,
-Streaming, Modell-Warm-up und echte End-to-End-Latenzen werden mit den echten
-Providern ergänzt. Die Demo behauptet keine Modellqualität oder Sprachlatenz.
+Das PNG-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
+recording, transcribing, deciding, acting, reasoning, speaking, failed. Die native
+ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündelt.

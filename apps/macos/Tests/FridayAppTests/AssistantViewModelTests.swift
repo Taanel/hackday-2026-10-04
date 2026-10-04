@@ -100,3 +100,9 @@ func speechStateLastsUntilPlaybackFinishesOrIsCancelled(cancel: Bool) async thro
     #expect(speech.pending == nil)
     if cancel { #expect(model.status == "Abgebrochen") }
 }
+
+@Test @MainActor func confirmedWakePrefixIsRemovedOnlyAtBeginning() {
+    #expect(AssistantViewModel.removeWakePrefix("Hey Friday, öffne Safari.") == "öffne Safari.")
+    #expect(AssistantViewModel.removeWakePrefix("Hey Friede, öffne Safari.") == "öffne Safari.")
+    #expect(AssistantViewModel.removeWakePrefix("Notiz: Hey Friday ist der Name.") == "Notiz: Hey Friday ist der Name.")
+}

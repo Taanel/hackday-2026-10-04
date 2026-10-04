@@ -1,5 +1,6 @@
 import SwiftUI
 import FridayCore
+import FridayAdapters
 
 struct AssistantView: View {
     @Environment(\.openWindow) private var openWindow
@@ -18,7 +19,7 @@ struct AssistantView: View {
                     MascotImage().frame(width: 48, height: 48)
                 }
 
-                Text("Grundgerüst: Texteingabe und Aktionsvorschau. Mikrofon, „Hey Friday“, Hex und Laya werden als Nächstes angebunden.")
+                Text("Sag „Hey Friday, öffne Safari“ oder „Hey Friday, mach eine Notiz: Milch kaufen“.")
                     .font(.callout).foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
@@ -33,6 +34,23 @@ struct AssistantView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
 
+                HStack {
+                    Toggle("Hey Friday aktivieren", isOn: Binding(
+                        get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .disabled(!model.isReady || model.isWorking)
+                    Spacer()
+                    if model.isRecording {
+                        Button("Aufnahme beenden") { model.stopRecording() }
+                    } else {
+                        Button("Sprechen", systemImage: "mic.fill") { model.startRecording() }
+                            .disabled(!model.isReady || model.isWorking)
+                    }
+                }
+                Text(model.wakeEnabled ? "Mikrofon aktiv · Erkennung läuft lokal." : "Mikrofon startet beim Aktivieren oder über „Sprechen“.")
+                    .font(.caption).foregroundStyle(.secondary)
+
                 Picker("Modus", selection: $model.mode) {
                     Text("Assistent").tag(InputMode.assistant)
                     Text("Diktat-Vorschau").tag(InputMode.dictation)
@@ -46,9 +64,9 @@ struct AssistantView: View {
                     .onSubmit { model.submit() }
 
                 HStack {
-                    Button("Ausprobieren") { model.submit() }
+                    Button("Ausführen") { model.submit() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(model.isWorking)
+                        .disabled(model.isWorking || !model.isReady)
                     if model.isWorking {
                         Button("Abbrechen") { model.cancel() }
                     }
@@ -58,6 +76,15 @@ struct AssistantView: View {
                 }
                 Text("Computeraktionen und Diktat bleiben stumm.")
                     .font(.caption).foregroundStyle(.secondary)
+
+                HStack {
+                    Button("Notizen zeigen", systemImage: "folder") {
+                        let directory = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes")
+                        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(directory)
+                    }
+                    if !model.isReady { Button("Erneut laden") { model.prepare() } }
+                }
 
                 Text(model.response.isEmpty ? "Hier erscheint die Antwort." : model.response)
                     .textSelection(.enabled)

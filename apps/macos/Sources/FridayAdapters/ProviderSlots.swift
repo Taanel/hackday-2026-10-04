@@ -1,22 +1,6 @@
 import Foundation
 import FridayCore
 
-/// Integrate Hex's native helper via IPC here; no Swift SDK is assumed.
-public struct HexSpeechToText: SpeechToText {
-    public init() {}
-    public func transcribe(audioFile: URL) async throws -> String {
-        throw FridayError.providerNotConfigured("Hex Speech-to-Text")
-    }
-}
-
-/// Map Laya choices to validated arguments from a separate parser/allowlist.
-public struct LayaDecisionEngine: FastDecisionEngine {
-    public init() {}
-    public func decide(text: String) async throws -> FastDecision {
-        throw FridayError.providerNotConfigured("Laya")
-    }
-}
-
 /// Replace with Ollama or a configured hosted reasoning model.
 public struct UnconfiguredReasoningEngine: ReasoningEngine {
     public init() {}

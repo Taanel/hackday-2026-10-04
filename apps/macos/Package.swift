@@ -22,6 +22,7 @@ let package = Package(
             resources: [.copy("Resources")]
         ),
         .testTarget(name: "FridayCoreTests", dependencies: ["FridayCore"]),
+        .testTarget(name: "FridayAdaptersTests", dependencies: ["FridayAdapters", "FridayCore"]),
         .testTarget(name: "FridayAppTests", dependencies: ["FridayApp", "FridayCore"])
     ]
 )

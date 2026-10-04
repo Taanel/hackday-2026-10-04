@@ -1,96 +1,86 @@
-# Friday — dein Assistent für macOS
+# Friday — lokaler Assistent für macOS
 
-Hack Day Berlin, 04.10.2026. Ein offenes Grundgerüst für einen Mac-Assistenten
-mit einem kleinen PNG-Maskottchen oben rechts, Diktat, „Hey Friday“, schnellen
-Computeraktionen und einem LLM für komplexere Aufgaben.
-
-**Stand: startbare Demo und Schnittstellen.** Spracheingabe, Wake-Word, Hex,
-Laya und echte Computeraktionen werden im nächsten Schritt angebunden.
+Erste testbare Version: PNG-Maskottchen oben rechts, native Thinking Orbs,
+„Hey Friday“, deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
+Computeraktionen. Komplexe Fragen gehen an Ollama; nur LLM-Antworten können
+optional mit der macOS-Stimme vorgelesen werden.
 
 ## Starten
 
-macOS 15+ und eine Swift-6-Toolchain mit macOS SDK. Keine Modell-Downloads und
-keine API-Keys nötig.
+Apple Silicon, macOS 15+, Swift 6, Python 3.12 über [uv](https://docs.astral.sh/uv/).
+Das einmalige Setup lädt die offenen Modellgewichte und das offizielle Hex-Binary.
+Danach arbeiten Wake, Hex und Laya lokal ohne API-Key.
 
 ```bash
-swift test --package-path apps/macos
+./scripts/setup-local-runtime.sh
 ./scripts/build-macos.sh
 open dist/Friday.app
 ```
 
-Alternativ `apps/macos/Package.swift` in Xcode öffnen und das Produkt `Friday` starten.
-Das Build-Skript erstellt eine lokal ad-hoc signierte Entwicklungs-App, kein
-notarisiertes Release für die Verteilung.
+Für komplexe Antworten [Ollama](https://ollama.com/) starten und ein Modell installieren,
+z.B. `ollama pull qwen3:8b`. Das Setup bevorzugt dieses Modell, ansonsten ein bereits
+installiertes Modell. Die Auswahl steht in `~/Library/Application Support/Friday/runtime.json`.
 
-Die App hat eine Menüleiste, ein schwebendes Maskottchen, native Thinking Orbs
-im Fenster und Panel sowie eine Texteingabe. Unter „Orb-Vorschau“ lassen sich
-alle neun Animationen ansehen; die Statusanzeige folgt der tatsächlichen Verarbeitung.
-Probiere `Öffne Safari`, `Notiz: Milch kaufen` oder `Plane einen Wochenendtrip`.
-Aktionen erscheinen als Vorschau; komplexe Anfragen zeigen den LLM-Platzhalter.
-„Diktat-Vorschau“ gibt den Text unverändert zurück. „LLM-Antwort vorlesen“ verwendet
-die macOS-Systemstimme und ist standardmäßig ausgeschaltet. Computeraktionen
-und Diktat bleiben auch bei eingeschalteter Option stumm.
+## Direkt testen
 
-## Struktur
+1. Auf das Maskottchen klicken und auf „Bereit · Laya und Hex lokal“ warten.
+2. „Hey Friday“ aktivieren und macOS-Mikrofonzugriff erlauben.
+3. „Hey Friday, öffne Safari“ sagen; eine kurze Sprechpause beendet die Aufnahme.
+4. „Hey Friday, mach eine Notiz: Milch kaufen“ probieren. „Notizen zeigen“ öffnet den Ordner.
 
-```text
-apps/macos/
-  Package.swift
-  Sources/
-    FridayApp/            SwiftUI, Menüleiste, Maskottchen, Demo-Eingabe
-      Resources/          mascot.png hier ablegen
-    FridayCore/           gemeinsame Verträge und AssistantRouter
-    FridayAdapters/       Demo, Hex/Laya/ElevenLabs-Slots, System-TTS
-  Tests/FridayCoreTests/  Routing und Fehlerpfade
-  Tests/FridayAppTests/   Antwortverhalten und Wiedergabezustand
-  Vendor/ThinkingOrbsKit/ gepinnte native MIT-Orbs von Libraries.dev
-  packaging/             Info.plist für Friday.app
-docs/
-  architecture.md        Datenfluss und Modulgrenzen
-  integrations.md        Anschlusspunkte und geprüfte Projektlinks
-  roadmap.md             nächste Schritte und Abnahmekriterien
-scripts/build-macos.sh   lokale .app bauen
-.github/workflows/       macOS-Build und Tests
-main.py, ai.py           ursprüngliches Python/Ollama-Beispiel
+Alternativ „Sprechen“ drücken oder einen Befehl als Text eingeben. „Abbrechen“
+stoppt die laufende Verarbeitung; das Overlay hat während der Aufnahme eine Stop-Taste.
+Wake ist standardmäßig aus und pausiert während Aufnahme, Verarbeitung und TTS.
+
+Unterstützte erste Aktionen: bekannte installierte Programme öffnen und Markdown-Notizen
+unter `~/Library/Application Support/Friday/Notes` speichern. Freie Terminalbefehle,
+Klicken in fremden Apps, Einfügen am Cursor und Web-Recherche folgen später.
+„Diktat-Vorschau“ zeigt den erkannten Text. „LLM-Antwort vorlesen“ ist optional;
+App-Starts und Notizen bleiben stumm.
+
+## Bausteine
+
+| Funktion | Erste Version |
+| --- | --- |
+| Wake | Moonshine Tiny Streaming, lokaler englischer Detector für „Hey Friday“ |
+| Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
+| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus vier Intents |
+| Computer Use | NSWorkspace-App-Start, lokale Markdown-Notizen |
+| Komplexe Antwort | Ollama, Modell konfigurierbar |
+| Text → Sprache | macOS-Systemstimme; optionaler Cloud-Adapter später |
+| Oberfläche | SwiftUI/AppKit-Overlay und native MIT Thinking Orbs |
+
+Laya-/Wake-Modelle und Revisionen stehen nach Setup in `models.json`; Hex-Release
+und Prüfsumme in `hex-release.json`, beide im Friday-Application-Support-Ordner.
+Es gibt keine automatischen Modell-Downloads beim App-Start.
+
+## Mitarbeit und Prüfung
+
+```bash
+swift test --package-path apps/macos
+uv run --project services/local-runtime --frozen pytest -q
 ```
 
-## Geplanter Sprachfluss
+`apps/macos/Sources/FridayApp` enthält Oberfläche und Sprachkoordination;
+`FridayCore` das Routing; `FridayAdapters` Audio, IPC, Hex, Laya, Tools und Ollama.
+Die beiden lokalen Python-Worker liegen unter `services/local-runtime` und werden
+mit der `.app` gebündelt. Modelle und Python-Umgebung bleiben außerhalb des Repos.
 
-„Hey Friday“ oder Taste → Aufnahme → Hex → Laya → Verzweigung:
+Geprüft: Swift-/Python-Tests, echte lokale Laya-Inferenz, synthetische Wake-Aufnahme,
+deutsches WAV → Hex → Laya und tatsächliches Speichern einer Notiz sowie App-Build/Signatur.
+Mikrofon, individuelle Aussprache und sichtbarer App-Start benötigen einen Live-Test auf dem Mac.
+Die englische synthetische Wake-Phrase wurde erkannt; die deutsche Anna-Stimme
+löste im zweiten Test nicht aus. Bei fehlender Aktivierung „Sprechen“ verwenden.
+Die Entwicklungs-App ist lokal ad-hoc signiert und kein notarisiertes Release.
 
-- Direkte Computeraktion → Ausführung → sichtbarer Abschluss, ohne TTS.
-- Komplexe Anfrage → LLM → Antwort → bei Bedarf TTS.
-
-Der separate Diktiermodus führt den Text direkt zur Texteingabe in der aktiven App.
-
-| Baustein | Im Grundgerüst | Nächster Schritt |
-| --- | --- | --- |
-| Maskottchen | schwebendes Panel mit Symbol | eigenes `mascot.png` hinzufügen |
-| Thinking Orbs | neun native Animationen, gemeinsamer Status in Fenster/Panel | Aufnahme-/Transkriptionszustände mit echten Providern verbinden |
-| Diktat / Hex | Capture-, STT- und TextOutput-Verträge | Mikrofon, Hex-Helper, Einfügen am Cursor |
-| „Hey Friday“ | WakeWordDetector-Vertrag und Provider-Slot | lokalen Detector anbinden |
-| Laya | Decision-Vertrag, Router, Demo-Klassifikation | echte Inferenz und Argumentvalidierung |
-| LLM-Fallback | Reasoning-Vertrag, Demo-Antwort | Ollama oder anderen Provider anbinden |
-| Computer Use | typisierte App-, Notiz- und Terminalaktionen | echten Executor und macOS-Berechtigungen |
-| Text-to-Speech | macOS-Systemstimme | optional ElevenLabs oder lokale Engine |
-
-Details stehen in der [Architektur](docs/architecture.md), den
-[Integrationshinweisen](docs/integrations.md) und der [Roadmap](docs/roadmap.md).
-Der [konkrete Integrationsplan](docs/superpowers/plans/2026-10-04-local-voice-stack.md)
-legt die lokalen Provider und offenen Modellgewichte für die nächste Umsetzung fest.
-Beitragende starten mit [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Ursprünglicher Starter
-
-`main.py` und `ai.py` stammen aus dem Veranstalter-Starter und bleiben als
-separates Dungeons-&-Dragons-Beispiel erhalten: Python + `requests`, Ollama auf
-`localhost:11434`, Modell `llama3.2`. Sie werden von der macOS-App noch nicht aufgerufen.
+[Architektur](docs/architecture.md) · [Integrationen](docs/integrations.md) ·
+[Roadmap](docs/roadmap.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Lizenz
 
-Der neue macOS-Code unter `apps/macos/` steht unter [MIT](apps/macos/LICENSE).
-Für das übernommene Veranstalter-Beispiel wurde im Ausgangsrepository keine
-Lizenz angegeben. Die eingebundenen [Thinking Orbs](https://github.com/Jakubantalik/Libraries.dev)
-stehen ebenfalls unter [MIT](apps/macos/Vendor/ThinkingOrbsKit/LICENSE); der
-Copyright-Hinweis wird mit der App ausgeliefert. Externe Modelle, Plattform-APIs
-und optionale Dienste haben ihre eigenen Bedingungen.
+Friday-Code, Maskottchen und lokale Worker stehen unter MIT; Laya-Code und die
+verwendeten Laya-Gewichte unter Apache-2.0, Moonshine Tiny und Hex/Whisper unter MIT.
+Die [Thinking Orbs](https://github.com/Jakubantalik/Libraries.dev) sind mit MIT-Hinweis gebündelt.
+macOS-Sprachausgabe ist ein Betriebssystemdienst, keine offene Modellkomponente.
+Jedes gewählte Ollama-Modell hat seine eigene Lizenz. `main.py` und `ai.py` bleiben
+als ursprünglicher D&D-Starter erhalten; dafür enthielt das Ausgangsrepo keine Lizenz.

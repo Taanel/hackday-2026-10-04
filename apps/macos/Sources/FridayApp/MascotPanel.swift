@@ -33,12 +33,13 @@ struct MascotImage: View {
 
 @MainActor final class FridayAppDelegate: NSObject, NSApplicationDelegate {
     static var openAssistant: (() -> Void)?
-    let model = AssistantViewModel()
+    let model = AssistantViewModel.live()
     private var mascotPanel: NSPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        model.prepare()
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 88, height: 112),
+            contentRect: NSRect(x: 0, y: 0, width: 96, height: 144),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -61,11 +62,16 @@ struct MascotImage: View {
 
     @objc private func positionMascot() {
         guard let panel = mascotPanel, let frame = NSScreen.main?.visibleFrame else { return }
-        panel.setFrameOrigin(NSPoint(x: frame.maxX - 108, y: frame.maxY - 132))
+        panel.setFrameOrigin(NSPoint(x: frame.maxX - 116, y: frame.maxY - 164))
     }
 
     private func showAssistant() {
         Self.openAssistant?()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { await model.shutdown(); sender.reply(toApplicationShouldTerminate: true) }
+        return .terminateLater
     }
 }
 
@@ -74,17 +80,32 @@ private struct FloatingAssistant: View {
     let open: () -> Void
 
     var body: some View {
-        Button(action: open) {
-            VStack(spacing: 4) {
+        VStack(spacing: 4) {
+            Button(action: open) {
                 MascotImage().frame(width: 68, height: 68)
+            }.buttonStyle(.plain)
                 AssistantOrb(phase: model.phase, size: .px20)
                     .padding(6)
                     .background(.regularMaterial, in: Capsule())
+            if model.isRecording {
+                Button("Stop") { model.stopRecording() }.buttonStyle(.bordered)
+            } else {
+                Text(model.wakeEnabled ? "Hey Friday" : "Friday")
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
             }
-            .frame(width: 88, height: 112)
         }
-        .buttonStyle(.plain)
+        .frame(width: 96, height: 144)
         .help("Friday öffnen · \(model.phase.label)")
         .accessibilityLabel("Friday öffnen. \(model.phase.label)")
+        .contextMenu {
+            Button(model.wakeEnabled ? "Hey Friday ausschalten" : "Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
+                .disabled(!model.isReady || model.isWorking)
+            Button("Sprechen") { model.startRecording() }.disabled(!model.isReady || model.isWorking)
+            Button("Abbrechen") { model.cancel() }.disabled(!model.isWorking)
+            Divider()
+            Button("Beenden") { NSApp.terminate(nil) }
+        }
     }
 }

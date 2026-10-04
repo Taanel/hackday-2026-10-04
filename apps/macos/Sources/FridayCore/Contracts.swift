@@ -13,7 +13,7 @@ public enum ResponseRoute: String, Sendable {
 
 /// Actual provider activity; microphone phases join this when capture is connected.
 public enum AssistantPhase: Sendable, Equatable {
-    case idle, deciding, acting, reasoning, speaking, failed
+    case idle, listening, recording, transcribing, deciding, acting, reasoning, speaking, failed
 }
 
 public struct AssistantResponse: Sendable, Equatable {
