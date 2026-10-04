@@ -67,6 +67,8 @@ Der separate Diktiermodus führt den Text direkt zur Texteingabe in der aktiven 
 
 Details stehen in der [Architektur](docs/architecture.md), den
 [Integrationshinweisen](docs/integrations.md) und der [Roadmap](docs/roadmap.md).
+Der [konkrete Integrationsplan](docs/superpowers/plans/2026-10-04-local-voice-stack.md)
+legt die lokalen Provider und offenen Modellgewichte für die nächste Umsetzung fest.
 Beitragende starten mit [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Ursprünglicher Starter

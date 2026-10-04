@@ -3,6 +3,10 @@
 Projektquellen am 04.10.2026 geprüft. Alle echten Adapter sind noch offen.
 Die App verdrahtet derzeit die Demo-Provider in `AssistantViewModel.swift`.
 
+Die jetzt ausgewählten lokalen Modelle und Laufzeiten stehen im
+[Integrationsplan](superpowers/plans/2026-10-04-local-voice-stack.md).
+Die Hinweise unten beschreiben weiterhin die vorhandenen Anschlusspunkte.
+
 ## Hex: Diktat / Speech-to-Text
 
 Quelle: [anomalyco/hex](https://github.com/anomalyco/hex), MIT;

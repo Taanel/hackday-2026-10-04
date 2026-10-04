@@ -3,6 +3,9 @@
 Die folgenden Schritte bauen auf dem Scaffold auf. Echte Provider, Wake-Word
 und Computeraktionen sind noch nicht implementiert.
 
+Die konkrete Auswahl der lokalen Modelle und Provider, Dateipfade und die
+Reihenfolge stehen im [Integrationsplan](superpowers/plans/2026-10-04-local-voice-stack.md).
+
 ## 1. Oberfläche und erstes Diktat
 
 - [x] Native App, Menüleiste, Panel oben rechts und Demo-Eingabe.
