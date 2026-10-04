@@ -78,8 +78,11 @@ Die Entwicklungs-App ist lokal ad-hoc signiert und kein notarisiertes Release.
 
 ## Lizenz
 
-Friday-Code, Maskottchen und lokale Worker stehen unter MIT; Laya-Code und die
+Friday-Code und lokale Worker stehen unter MIT; Laya-Code und die
 verwendeten Laya-Gewichte unter Apache-2.0, Moonshine Tiny und Hex/Whisper unter MIT.
+Die aktuelle Maskottchen-Grafik stammt aus einem GIF mit ungeklärter Quelle und Lizenz
+und fällt nicht unter MIT; Details in
+[Resources/README.md](apps/macos/Sources/FridayApp/Resources/README.md).
 Die [Thinking Orbs](https://github.com/Jakubantalik/Libraries.dev) sind mit MIT-Hinweis gebündelt.
 macOS-Sprachausgabe ist ein Betriebssystemdienst, keine offene Modellkomponente.
 Jedes gewählte Ollama-Modell hat seine eigene Lizenz. `main.py` und `ai.py` bleiben

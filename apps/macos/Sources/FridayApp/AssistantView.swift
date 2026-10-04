@@ -16,7 +16,7 @@ struct AssistantView: View {
                         Text("Dein Assistent für den Mac").foregroundStyle(.secondary)
                     }
                     Spacer()
-                    MascotImage().frame(width: 48, height: 48)
+                    MascotImage(model: model).frame(width: 54, height: 48)
                 }
 
                 Text("Sag „Hey Friday, öffne Safari“ oder „Hey Friday, mach eine Notiz: Milch kaufen“.")
