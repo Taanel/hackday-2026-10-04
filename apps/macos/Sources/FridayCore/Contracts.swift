@@ -11,6 +11,11 @@ public enum ResponseRoute: String, Sendable {
     case dictation
 }
 
+/// Actual provider activity; microphone phases join this when capture is connected.
+public enum AssistantPhase: Sendable, Equatable {
+    case idle, deciding, acting, reasoning, speaking, failed
+}
+
 public struct AssistantResponse: Sendable, Equatable {
     public let text: String
     public let route: ResponseRoute
@@ -117,6 +122,7 @@ public protocol ToolExecutor: Sendable {
 }
 
 @MainActor public protocol SpeechOutput {
+    /// Returns when playback finishes; cancellation or stop throws CancellationError.
     func speak(_ text: String) async throws
     func stop()
 }

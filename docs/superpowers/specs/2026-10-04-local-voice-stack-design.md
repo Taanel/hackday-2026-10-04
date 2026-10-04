@@ -57,14 +57,19 @@ Ausgabe und Quantisierungsqualität werden geprüft, bevor sie Standard wird.
 
 ## Datenfluss und Verhalten
 
-Taste oder „Hey Friday“ → zentrale Audioaufnahme → Hex → expliziter Modus.
+Laufzeit: „Hey Friday“ → zentrale Audioaufnahme → Hex → Laya → Verzweigung.
+Eine sichere Computeraktion wird direkt ausgeführt und visuell bestätigt,
+ohne TTS. Eine komplexe Anfrage geht an das LLM; dessen finale Antwort kann
+bei Bedarf vorgelesen werden. Eine Taste kann die Aktivierung ebenfalls starten.
+
+Der explizite Diktiermodus zweigt nach Hex vor Laya ab.
 Diktat wird am Cursor eingefügt. Assistententext geht an Laya. Laya wählt aus
 Programm öffnen, Notiz erstellen, Reasoning und unbekannt. Argumente extrahiert
 ein separater Parser; App-Namen werden auf bekannte Bundle-IDs abgebildet.
 Terminalaktionen werden nicht aus frei erzeugtem Text ausgeführt.
 
 Unsichere, unvollständige oder abgeschnittene Entscheidungen gehen an das lokale
-Reasoning-Modell. Dessen Antwort wird in der UI gezeigt; TTS spricht nur den finalen
+Reasoning-Modell. Dessen Antwort wird in der UI gezeigt; optionale TTS spricht nur den finalen
 Antworttext, keine internen Thinking-Tokens. Toolfehler erzeugen keinen automatischen
 zweiten Ausführungsversuch. Recherche braucht zusätzlich ein Such-/Browserwerkzeug
 und Quellen; Offline-Inferenz ermöglicht keine Live-Websuche ohne Netzwerk.
@@ -81,7 +86,9 @@ unserem Mac scheitert; er bringt mehr Runtime-Abhängigkeiten mit. Eine vollstä
 native Swift-Laya-Inferenz ist ein späterer Schritt. Ein Hex-TypeScript-Sidecar
 würde dessen SDK wiederverwenden, fügt aber eine zweite Runtime hinzu.
 
-Zuerst Laya mit Texteingabe, dann Hex-Diktat und echte App-/Notizaktionen. TTS kann
+Die folgenden Schritte beschreiben Entwicklungsabhängigkeiten; der Laufzeitablauf
+beginnt immer mit Aktivierung und Hex vor Laya. Zuerst Laya mit Texteingabe,
+dann Hex-Diktat und echte App-/Notizaktionen. TTS kann
 nach Klärung ihres Abschlussvertrags unabhängig bearbeitet werden. Wake-Word folgt
 auf die zentrale Audioquelle. Abnahme: deutsche Befehle mit geprüften Argumenten,
 keine Aktionen bei unsicherer/abgeschnittener Entscheidung, Sprachloop ohne Selbstauslösung,

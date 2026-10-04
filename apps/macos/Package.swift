@@ -9,14 +9,19 @@ let package = Package(
         .library(name: "FridayCore", targets: ["FridayCore"]),
         .library(name: "FridayAdapters", targets: ["FridayAdapters"])
     ],
+    dependencies: [.package(path: "Vendor/ThinkingOrbsKit")],
     targets: [
         .target(name: "FridayCore"),
         .target(name: "FridayAdapters", dependencies: ["FridayCore"]),
         .executableTarget(
             name: "FridayApp",
-            dependencies: ["FridayCore", "FridayAdapters"],
+            dependencies: [
+                "FridayCore", "FridayAdapters",
+                .product(name: "ThinkingOrbsKit", package: "ThinkingOrbsKit")
+            ],
             resources: [.copy("Resources")]
         ),
-        .testTarget(name: "FridayCoreTests", dependencies: ["FridayCore"])
+        .testTarget(name: "FridayCoreTests", dependencies: ["FridayCore"]),
+        .testTarget(name: "FridayAppTests", dependencies: ["FridayApp", "FridayCore"])
     ]
 )

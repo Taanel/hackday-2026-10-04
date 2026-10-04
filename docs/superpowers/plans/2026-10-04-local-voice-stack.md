@@ -16,6 +16,23 @@ Hex/Whisper Turbo, Moonshine Streaming, Ollama/Qwen3, MLX/Qwen3-TTS.
 Der zugehörige [Entwurf](../specs/2026-10-04-local-voice-stack-design.md)
 beschreibt die Architekturentscheidungen und die betrachteten Alternativen.
 
+## Laufzeitablauf
+
+```mermaid
+flowchart LR
+    Wake[Hey Friday] --> Hex[Hex: lokales STT]
+    Hex --> Laya[Laya: lokale Entscheidung]
+    Laya -->|direkte Aktion| Computer[Computer Use: Ausführung]
+    Computer --> Done[Visueller Abschluss, ohne TTS]
+    Laya -->|komplexe Frage / Planung / Recherche| LLM[Lokales LLM]
+    LLM --> Answer[Finale Antwort]
+    Answer -->|bei Bedarf| TTS[Text-to-Speech]
+```
+
+Aufnahme liegt zwischen Aktivierung und Hex. Diktat ist ein expliziter Nebenmodus
+und umgeht Laya. Die nummerierten Phasen unten beschreiben Entwicklungsabhängigkeiten;
+sie ändern die obige Reihenfolge nicht. **Direkte Computeraktionen bleiben stumm.**
+
 ## 1. Was wir nehmen
 
 | Baustein | Konkrete Auswahl | Warum / Lizenzquelle |
@@ -163,8 +180,9 @@ Dateien:
   anschließend gestreamte PCM-Wiedergabe über den gemeinsamen Audio-Player.
 - [ ] `SpeechOutput` um Abschluss-/Abbruchereignisse erweitern; AVSpeechSynthesizer-
   Delegate und MLX-Player-Ende müssen denselben Coordinator-Vertrag erfüllen.
-- [ ] Modell resident halten, kurze Bestätigungen priorisieren; Ausgabe unterbrechen
-  können. Modellgenerierung nicht auf dem UI-Thread blockieren.
+- [ ] Modell resident halten und finale LLM-Antworten nur bei Bedarf sprechen;
+  direkte Computeraktionen/Diktat niemals vorlesen. Ausgabe unterbrechen können.
+  Modellgenerierung nicht auf dem UI-Thread blockieren.
 - [ ] 20 deutsche Sätze mit Namen, Zahlen, Umlauten und längeren Antworten vergleichen.
   Zeit bis zum ersten Audio, Verständlichkeit und Speicherlast messen. Bei starkem
   Akzent oder zu langsamer Ausgabe 8-bit/andere Presets prüfen; Systemstimme bleibt verfügbar.

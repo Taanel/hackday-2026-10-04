@@ -12,8 +12,8 @@ flowchart TD
     Mode -->|Assistent| Decision[FastDecisionEngine: Laya]
     Decision -->|Sichere Aktion + gültige Argumente| Tools[ToolExecutor: macOS / Terminal]
     Decision -->|Reasoning / unbekannt / unsicher / Providerfehler| LLM[ReasoningEngine]
-    Tools --> Reply[Antworttext]
-    LLM --> Reply
+    Tools --> Complete[Sichtbarer Abschluss: ohne TTS]
+    LLM --> Reply[Finaler Antworttext]
     Reply --> TTS[Optional: SpeechOutput]
 ```
 
@@ -51,6 +51,11 @@ fehlende Argumente und Klassifikationsfehler führen zum Reasoning-Provider.
 Abbruch führt zu keiner neuen Anfrage. Tool-Fehler werden sichtbar weitergegeben;
 der Router wiederholt eine möglicherweise bereits ausgeführte Aktion nicht über das LLM.
 
+Der Laufzeitablauf ist „Hey Friday“ → Hex → Laya → Computeraktion oder LLM.
+Nur die LLM-Antwort kann anschließend bei Bedarf vorgelesen werden. Einfache
+Computeraktionen und Diktat lösen niemals TTS aus. Der Router meldet über
+`onPhase` Entscheidung und die gewählte Route vor dem jeweiligen Provideraufruf.
+
 Laya entscheidet über feste Kandidaten. Ein separater Parser löst beispielsweise
 „Safari“ zu einer erlaubten Bundle-ID auf oder extrahiert den Notiztext. Die
 gemeinsame Argumentprüfung ist nur strukturell; der echte Executor muss zusätzlich
@@ -70,12 +75,24 @@ an der jeweiligen Funktion angefordert.
 
 ## Lebenszyklus der Sprachintegration
 
-Geplante Zustände: idle → listening → transcribing → deciding → acting/reasoning
-→ speaking → idle. Wake-Word ist opt-in. Während Aufnahme und TTS muss die
+Geplante Zustände: idle → listening → transcribing → deciding → Verzweigung:
+acting → idle oder reasoning → optional speaking → idle. Wake-Word ist opt-in.
+Während Aufnahme und TTS muss die
 Wake-Erkennung pausieren, damit Friday nicht auf sich selbst reagiert. Alle
 Abbrüche müssen Mikrofon, temporäre Audiodateien und aktive Helper freigeben.
-`SpeechOutput.speak` startet Wiedergabe; es wartet in dieser ersten Version nicht
-auf das Ende. Die echte Sprachschleife braucht dafür ein Abschlussereignis.
+`SpeechOutput.speak` wartet auf Wiedergabeende und wirft bei Stop/Abbruch einen
+`CancellationError`. System-TTS verwendet dafür den AVSpeechSynthesizer-Delegate.
+
+## Thinking Orbs
+
+Die native SwiftUI-Version von Libraries.dev liegt als gepinntes lokales Paket
+unter `apps/macos/Vendor/ThinkingOrbsKit`; MIT-Lizenz und Upstream-Revision sind
+beigefügt. `AssistantOrb` bildet echte Phasen auf dessen Animationen ab:
+Bereit/breathing (statisch), Entscheidung/connecting, Aktion/working,
+LLM/solving, Sprachausgabe/listening und Fehler/shaping (statisch mit Fehlersymbol).
+Fenster und schwebendes Panel beobachten dasselbe `AssistantViewModel` des
+App-Delegates. Die gesonderte Orb-Vorschau zeigt alle neun Originalanimationen.
+Reduce Motion und Hell-/Dunkelmodus werden vom nativen Renderer berücksichtigt.
 
 ## Offene Integrationsgrenzen
 

@@ -9,14 +9,23 @@ import FridayAdapters
     @Published private(set) var response = ""
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
+    @Published private(set) var phase: AssistantPhase = .idle
 
-    private let router = AssistantRouter(
-        decisions: DemoDecisionEngine(),
-        reasoning: DemoReasoningEngine(),
-        tools: PreviewToolExecutor()
-    )
-    private let speech = SystemSpeechOutput()
-    private var task: Task<Void, Never>?
+    private let router: AssistantRouter
+    private let speech: any SpeechOutput
+    private(set) var task: Task<Void, Never>?
+
+    init(
+        router: AssistantRouter = AssistantRouter(
+            decisions: DemoDecisionEngine(),
+            reasoning: DemoReasoningEngine(),
+            tools: PreviewToolExecutor()
+        ),
+        speech: any SpeechOutput = SystemSpeechOutput()
+    ) {
+        self.router = router
+        self.speech = speech
+    }
 
     func submit() {
         guard !isWorking else { return }
@@ -28,9 +37,11 @@ import FridayAdapters
         response = ""
         status = "Verarbeite …"
         task = Task {
-            defer { isWorking = false }
+            defer { isWorking = false; task = nil }
             do {
-                let result = try await router.handle(submittedInput, mode: submittedMode)
+                let result = try await router.handle(submittedInput, mode: submittedMode) { [weak self] phase in
+                    await self?.showPhase(phase)
+                }
                 try Task.checkCancellation()
                 response = result.text
                 switch result.route {
@@ -38,15 +49,31 @@ import FridayAdapters
                 case .reasoning: status = "LLM-Fallback · Platzhalter"
                 case .dictation: status = "Diktat · Textvorschau"
                 }
-                if shouldSpeak && result.route != .dictation {
+                // Computer actions finish visually; only requested LLM answers are spoken.
+                if shouldSpeak && result.route == .reasoning {
+                    phase = .speaking
                     try await speech.speak(result.text)
                 }
+                try Task.checkCancellation()
+                phase = .idle
             } catch is CancellationError {
                 status = "Abgebrochen"
+                phase = .idle
             } catch {
                 status = "Fehler"
                 response = error.localizedDescription
+                phase = .failed
             }
+        }
+    }
+
+    private func showPhase(_ phase: AssistantPhase) {
+        self.phase = phase
+        switch phase {
+        case .deciding: status = "Entscheidung · Demo"
+        case .acting: status = "Computeraktion · Vorschau"
+        case .reasoning: status = "LLM · Demo"
+        default: break
         }
     }
 

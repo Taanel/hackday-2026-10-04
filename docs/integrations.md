@@ -65,7 +65,18 @@ echter Executor und vergibt keine Systemberechtigungen.
 ## Sprachausgabe
 
 `SystemSpeechOutput` verwendet AVFoundation und die installierte macOS-Stimme;
-dafür braucht die Demo keinen externen TTS-Account. Die Ausgabe ist optional.
+dafür braucht die Demo keinen externen TTS-Account. Die Ausgabe ist optional
+und ausschließlich für finale LLM-Antworten vorgesehen; Computeraktionen und
+Diktat bleiben stumm. `speak` wartet auf Wiedergabeende; Stop/Abbruch beendet
+die wartende Anfrage mit `CancellationError`.
 `ElevenLabsSpeechOutput` ist ein späterer Anbieter-Slot, ohne API-Aufruf oder
 Key. Alternativ kann eine lokale TTS-Engine denselben Vertrag implementieren.
 Cloud-Schlüssel gehören später in die Keychain, nicht ins Repository.
+
+## Thinking Orbs
+
+[Libraries.dev](https://libraries.dev/orbs) bietet einen nativen SwiftUI-Port
+mit neun Animationen. Die MIT-Quellen sind unter `Vendor/ThinkingOrbsKit`
+auf Revision `d06640864eb4adc2fe240f899a44ee6210779782` gepinnt.
+`AssistantOrb` ist der app-eigene Wrapper; die Oberfläche benötigt kein npm,
+React oder WebView. Der Upstream-Copyright-Hinweis liegt auch in den App-Ressourcen.

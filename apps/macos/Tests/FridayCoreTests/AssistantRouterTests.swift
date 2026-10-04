@@ -4,6 +4,11 @@ import Testing
 
 private enum StubError: Error { case unavailable }
 
+private actor PhaseSpy {
+    private(set) var phases: [AssistantPhase] = []
+    func record(_ phase: AssistantPhase) { phases.append(phase) }
+}
+
 private actor DecisionStub: FastDecisionEngine {
     enum Behavior: Sendable { case decision(FastDecision), failure, cancellation }
     let behavior: Behavior
@@ -126,4 +131,45 @@ func uncertainOrInvalidConfidenceFallsBack(confidence: Double) async throws {
     let router = AssistantRouter(decisions: decisions, reasoning: ReasoningSpy(), tools: ToolSpy())
     await #expect(throws: FridayError.self) { try await router.handle(" \n") }
     #expect(await decisions.calls == 0)
+}
+
+@Test func actionReportsDecisionThenExecution() async throws {
+    let phases = PhaseSpy()
+    let router = AssistantRouter(
+        decisions: DecisionStub(.decision(FastDecision(intent: .action(.createNote(text: "Milch")), confidence: 1))),
+        reasoning: ReasoningSpy(), tools: ToolSpy()
+    )
+    _ = try await router.handle("Notiz: Milch") { await phases.record($0) }
+    #expect(await phases.phases == [.deciding, .acting])
+}
+
+@Test func fallbackReportsDecisionThenReasoning() async throws {
+    let phases = PhaseSpy()
+    let router = AssistantRouter(decisions: DecisionStub(.failure), reasoning: ReasoningSpy(), tools: ToolSpy())
+    _ = try await router.handle("Plane XY") { await phases.record($0) }
+    #expect(await phases.phases == [.deciding, .reasoning])
+}
+
+@Test func dictationReportsNoModelOrToolActivity() async throws {
+    let phases = PhaseSpy()
+    let router = AssistantRouter(decisions: DecisionStub(.failure), reasoning: ReasoningSpy(), tools: ToolSpy())
+    _ = try await router.handle("Hallo", mode: .dictation) { await phases.record($0) }
+    #expect(await phases.phases.isEmpty)
+}
+
+@Test func cancellationDuringPhaseCallbackPreventsExecution() async throws {
+    let tools = ToolSpy()
+    let reasoning = ReasoningSpy()
+    let router = AssistantRouter(
+        decisions: DecisionStub(.decision(FastDecision(intent: .action(.createNote(text: "Milch")), confidence: 1))),
+        reasoning: reasoning, tools: tools
+    )
+    let task = Task {
+        try await router.handle("Notiz: Milch") { phase in
+            if phase == .acting { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+    }
+    await #expect(throws: CancellationError.self) { try await task.value }
+    #expect(await tools.requests.isEmpty)
+    #expect(await reasoning.calls == 0)
 }

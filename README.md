@@ -22,11 +22,14 @@ Alternativ `apps/macos/Package.swift` in Xcode öffnen und das Produkt `Friday` 
 Das Build-Skript erstellt eine lokal ad-hoc signierte Entwicklungs-App, kein
 notarisiertes Release für die Verteilung.
 
-Die App hat eine Menüleiste, ein schwebendes Maskottchen und eine Texteingabe.
+Die App hat eine Menüleiste, ein schwebendes Maskottchen, native Thinking Orbs
+im Fenster und Panel sowie eine Texteingabe. Unter „Orb-Vorschau“ lassen sich
+alle neun Animationen ansehen; die Statusanzeige folgt der tatsächlichen Verarbeitung.
 Probiere `Öffne Safari`, `Notiz: Milch kaufen` oder `Plane einen Wochenendtrip`.
 Aktionen erscheinen als Vorschau; komplexe Anfragen zeigen den LLM-Platzhalter.
-„Diktat-Vorschau“ gibt den Text unverändert zurück. „Antwort vorlesen“ verwendet
-die macOS-Systemstimme und ist standardmäßig ausgeschaltet.
+„Diktat-Vorschau“ gibt den Text unverändert zurück. „LLM-Antwort vorlesen“ verwendet
+die macOS-Systemstimme und ist standardmäßig ausgeschaltet. Computeraktionen
+und Diktat bleiben auch bei eingeschalteter Option stumm.
 
 ## Struktur
 
@@ -39,6 +42,8 @@ apps/macos/
     FridayCore/           gemeinsame Verträge und AssistantRouter
     FridayAdapters/       Demo, Hex/Laya/ElevenLabs-Slots, System-TTS
   Tests/FridayCoreTests/  Routing und Fehlerpfade
+  Tests/FridayAppTests/   Antwortverhalten und Wiedergabezustand
+  Vendor/ThinkingOrbsKit/ gepinnte native MIT-Orbs von Libraries.dev
   packaging/             Info.plist für Friday.app
 docs/
   architecture.md        Datenfluss und Modulgrenzen
@@ -51,13 +56,17 @@ main.py, ai.py           ursprüngliches Python/Ollama-Beispiel
 
 ## Geplanter Sprachfluss
 
-„Hey Friday“ oder Taste → Aufnahme → Hex/STT → Text → Laya → schnelle Aktion
-oder Reasoning-LLM → Antwort → optionale Sprachausgabe.
+„Hey Friday“ oder Taste → Aufnahme → Hex → Laya → Verzweigung:
+
+- Direkte Computeraktion → Ausführung → sichtbarer Abschluss, ohne TTS.
+- Komplexe Anfrage → LLM → Antwort → bei Bedarf TTS.
+
 Der separate Diktiermodus führt den Text direkt zur Texteingabe in der aktiven App.
 
 | Baustein | Im Grundgerüst | Nächster Schritt |
 | --- | --- | --- |
 | Maskottchen | schwebendes Panel mit Symbol | eigenes `mascot.png` hinzufügen |
+| Thinking Orbs | neun native Animationen, gemeinsamer Status in Fenster/Panel | Aufnahme-/Transkriptionszustände mit echten Providern verbinden |
 | Diktat / Hex | Capture-, STT- und TextOutput-Verträge | Mikrofon, Hex-Helper, Einfügen am Cursor |
 | „Hey Friday“ | WakeWordDetector-Vertrag und Provider-Slot | lokalen Detector anbinden |
 | Laya | Decision-Vertrag, Router, Demo-Klassifikation | echte Inferenz und Argumentvalidierung |
@@ -81,5 +90,7 @@ separates Dungeons-&-Dragons-Beispiel erhalten: Python + `requests`, Ollama auf
 
 Der neue macOS-Code unter `apps/macos/` steht unter [MIT](apps/macos/LICENSE).
 Für das übernommene Veranstalter-Beispiel wurde im Ausgangsrepository keine
-Lizenz angegeben. Externe Modelle, Plattform-APIs und optionale Dienste haben
-ihre eigenen Bedingungen; im Grundgerüst wird kein Fremdcode mitgeliefert.
+Lizenz angegeben. Die eingebundenen [Thinking Orbs](https://github.com/Jakubantalik/Libraries.dev)
+stehen ebenfalls unter [MIT](apps/macos/Vendor/ThinkingOrbsKit/LICENSE); der
+Copyright-Hinweis wird mit der App ausgeliefert. Externe Modelle, Plattform-APIs
+und optionale Dienste haben ihre eigenen Bedingungen.

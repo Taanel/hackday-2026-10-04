@@ -3,13 +3,12 @@ import SwiftUI
 @main
 struct FridayApp: App {
     @NSApplicationDelegateAdaptor(FridayAppDelegate.self) private var delegate
-    @StateObject private var model = AssistantViewModel()
 
     var body: some Scene {
         WindowGroup("Friday", id: "assistant") {
-            AssistantView(model: model)
+            AssistantView(model: delegate.model)
         }
-        .defaultSize(width: 500, height: 430)
+        .defaultSize(width: 540, height: 580)
 
         MenuBarExtra("Friday", systemImage: "sparkles") {
             FridayMenu()

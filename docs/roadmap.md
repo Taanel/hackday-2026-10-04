@@ -9,6 +9,7 @@ Reihenfolge stehen im [Integrationsplan](superpowers/plans/2026-10-04-local-voic
 ## 1. Oberfläche und erstes Diktat
 
 - [x] Native App, Menüleiste, Panel oben rechts und Demo-Eingabe.
+- [x] Native Thinking Orbs in Fenster und Panel; Vorschau aller neun Animationen.
 - [ ] Team-PNG unter `Sources/FridayApp/Resources/mascot.png` hinzufügen.
 - [ ] Mikrofonaufnahme mit sichtbarem Aufnahmezustand und Abbruch anbinden.
 - [ ] Hex-Bridge und lokales Deutsch-Modell integrieren.
@@ -49,8 +50,9 @@ Abnahme: „Plane XY“ liefert einen Plan; „Recherchiere XY“ liefert eine A
 
 ## 5. Sprachschleife und Verteilung
 
-- [x] Optionales Vorlesen mit macOS-Systemstimme.
-- [ ] TTS-Abschlussereignis und Unterbrechen beim nächsten Befehl ergänzen.
+- [x] Optionales Vorlesen von LLM-Antworten; Computeraktionen/Diktat bleiben stumm.
+- [x] System-TTS wartet auf Wiedergabeende; Abbrechen stoppt die Ausgabe.
+- [ ] Vollständigen Coordinator mit Wake-/Aufnahme-Lebenszyklus verbinden.
 - [ ] Bei Bedarf ElevenLabs oder lokale TTS-Engine anschließen.
 - [ ] Aufnahme-, Inferenz-, Tool- und TTS-Latenzen messen.
 - [ ] Berechtigungs-Onboarding, stabile Codesign-Identität und notarisiertes Release.

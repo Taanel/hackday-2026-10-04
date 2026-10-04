@@ -24,7 +24,8 @@ Activation (button / future shortcut / future "Hey Friday") → audio capture �
 → explicit input mode. Dictation goes directly to text insertion. Assistant mode
 goes to the fast decision provider; a sufficiently confident typed action goes to
 the tool executor, while reasoning, unknown decisions and classifier failures go
-to the reasoning provider. Optional TTS speaks the assistant response, never dictated text.
+to the reasoning provider. Optional TTS speaks only the final reasoning response;
+direct computer actions and dictated text stay silent (updated user requirement).
 
 Laya selects among predefined actions; it does not generate arbitrary app names,
 note content or shell commands. Argument extraction/validation is separate and
