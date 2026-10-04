@@ -42,23 +42,30 @@ Mikrofon nach manueller Aufnahme gestoppt. Beenden sperrt neue Starts, cancelt
 laufende Tasks, wartet deren Ende ab und stoppt alle eigenen Helper.
 
 NSWorkspace öffnet bekannte installierte Bundle-IDs. Notizen werden atomar im
-Friday-Ordner gespeichert. Terminal- und Accessibility-Aktionen sowie Cursor-Diktat
-sind noch offen. Der LLM-Antwortpfad besitzt keine Web- oder Computerwerkzeuge; System-TTS wird
-nur für angeforderte LLM-Antworten genutzt und wartet auf Wiedergabeende.
+Friday-Ordner gespeichert. Schreibtischwechsel senden Control + Pfeiltaste mit
+Bedienungshilfen-Zugriff. Freie Terminalbefehle, allgemeine Klick-Steuerung und
+Cursor-Diktat sind noch offen. Gemini kann höchstens drei typisierte Aktionen an
+den Router zurückgeben; dieser validiert alle vor der ersten Ausführung und nutzt
+die gleichen lokalen Tools. System-TTS liest LLM-Antworten standardmäßig vor und
+wartet auf Wiedergabeende; einfache Aktionen bleiben stumm.
 
 Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
 recording, transcribing, deciding, acting, reasoning, speaking, failed. Die native
 ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündelt.
 
 GeminiReasoningEngine verwendet die GenerateContent-API mit Header-Authentifizierung,
-60-Sekunden-Deadline und finalem Antworttext ohne Thinking-Parts. Der persönliche
+12-Sekunden-Deadline pro Aufruf und finalem Antworttext ohne Thinking-Parts. Bei
+Überlastung nutzt es Gemini 3.5 Flash Lite und pausiert das primäre Modell für
+zwei Minuten. Der persönliche
 API-Schlüssel kommt aus dem macOS-Schlüsselbund. HTTP-Fehler werden sanitisiert.
 Safari-Suchen öffnen einen URL-encoded Google-Suchlink ausdrücklich mit Safari;
 sie liefern keine LLM-Zusammenfassung der Ergebnisse. Der Mikrofon-Tap ist explizit
 Sendable, weil AVAudioEngine ihn außerhalb des MainActor aufruft.
 
 MacApplicationCatalog liest Namen und Bundle-IDs aus Applications, System-Applications
-und dem persönlichen Applications-Ordner. Mehrdeutige Namen werden nicht geraten.
+und dem persönlichen Applications-Ordner. Leerzeichen und Interpunktion im Namen
+werden normalisiert; eindeutige kleine Schreibfehler werden korrigiert.
+Mehrdeutige Namen werden nicht geraten.
 Der Executor öffnet die tatsächlich über Launch Services gefundene Anwendung.
 Vollständig erkannte Safari-Suchen werden vor Laya sprachlich normalisiert;
 die Klassifikation und Konfidenz bleiben echte Laya-Ausgaben.

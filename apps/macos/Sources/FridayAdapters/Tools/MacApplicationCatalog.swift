@@ -37,6 +37,6 @@ public enum MacApplicationCatalog {
 
     static func normalize(_ name: String) -> String {
         name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "de"))
-            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .filter { $0.isLetter || $0.isNumber }
     }
 }

@@ -65,8 +65,8 @@ Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt Ap
 ## Sprachausgabe
 
 `SystemSpeechOutput` verwendet AVFoundation und die installierte macOS-Stimme;
-dafür braucht die Demo keinen externen TTS-Account. Die Ausgabe ist optional
-und ausschließlich für finale LLM-Antworten vorgesehen; Computeraktionen und
+dafür braucht die App keinen externen TTS-Account oder API-Key. Die Ausgabe ist
+standardmäßig aktiv und abschaltbar, für finale LLM-Antworten und LLM-Fehler; Computeraktionen und
 Diktat bleiben stumm. `speak` wartet auf Wiedergabeende; Stop/Abbruch beendet
 die wartende Anfrage mit `CancellationError`.
 `ElevenLabsSpeechOutput` ist ein späterer Anbieter-Slot, ohne API-Aufruf oder
@@ -88,5 +88,9 @@ API-Schlüssel wird im macOS-Schlüsselbund unter dev.hackday.friday.gemini gesp
 `python3 scripts/configure-gemini.py` wählt das Cloud-Fallback; das normale lokale
 Setup behält die gewählte Fallback-Konfiguration bei. Googles
 [Modell-Dokumentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
-beschreibt den geprüften Modellnamen. App-Starts, Safari-Suche und Notizen bleiben
-lokale Toolaktionen; komplexe Antworttexte können optional vorgelesen werden.
+beschreibt den geprüften Modellnamen. Bei 503 und anderen vorübergehenden Fehlern
+übernimmt Gemini 3.5 Flash Lite. Ein erfolgreicher Modelltest bestätigt Antworten
+und Function Calling. App-Starts, Safari-Suche, Notizen und Schreibtischwechsel
+bleiben lokale Toolaktionen. Gemini kann diese als typisierte Aufträge an Friday
+zurückgeben; unbekannte Funktionen oder nicht installierte App-Namen werden
+abgelehnt. Finale Antworten werden standardmäßig lokal vorgelesen.

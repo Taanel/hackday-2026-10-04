@@ -19,6 +19,8 @@ public struct LayaDecisionEngine: FastDecisionEngine {
         let modelInput: String
         if case .searchSafari(let query) = parser.parse(intent: "search_web", text: text) {
             modelInput = "Bitte führe eine Websuche in Safari nach dem Suchbegriff \(query) aus."
+        } else if case .switchDesktop(let direction) = parser.parse(intent: "switch_desktop", text: text) {
+            modelInput = "Wechsle den macOS-Schreibtisch nach \(direction == .left ? "links" : "rechts")."
         } else { modelInput = text }
         let data = try JSONEncoder().encode(Request(id: id, text: modelInput))
         let reply = try JSONDecoder().decode(Reply.self, from: await worker.request(data, id: id))

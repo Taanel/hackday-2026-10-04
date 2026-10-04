@@ -42,7 +42,7 @@ class Agent:
     def predict(self, text, questions):
         print("prediction diagnostic")
         os.write(1, b"native prediction diagnostic\\n")
-        return {"answers":{"intent":{"type":"choice","choice":"unknown","probabilities":{"open_app":0.1,"search_web":0.0,"create_note":0.1,"reasoning":0.2,"unknown":0.6}}},"usage":{"truncated":False,"truncated_questions":[],"state_tokens_dropped":0}}
+        return {"answers":{"intent":{"type":"choice","choice":"unknown","probabilities":{"open_app":0.1,"search_web":0.0,"create_note":0.1,"switch_desktop":0.0,"reasoning":0.2,"unknown":0.6}}},"usage":{"truncated":False,"truncated_questions":[],"state_tokens_dropped":0}}
 def load(path, **kwargs):
     assert kwargs == {"local_files_only":True}
     print("load diagnostic")

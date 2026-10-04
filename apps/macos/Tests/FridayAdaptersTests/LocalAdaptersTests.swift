@@ -3,6 +3,23 @@ import Testing
 import FridayCore
 @testable import FridayAdapters
 
+@Test(arguments: ["Kannst du Shaper 3D öffnen?", "Öffne Shapr 3D", "Bitte öffne Shapr3D", "Mach Shapr3D auf", "Kannst du bitte Shapr3D für mich öffnen?"])
+func spokenInstalledAppNamesResolveDespiteSpacingAndOneTypo(text: String) {
+    let parser = ActionArgumentParser(applications: ["Shapr3D": "com.shapr3d.shapr", "Blender": "org.blenderfoundation.blender"])
+    #expect(parser.parse(intent: "open_app", text: text) == .openApplication(bundleIdentifier: "com.shapr3d.shapr"))
+}
+
+@Test func ambiguousAndShortFuzzyAppNamesNeverPickAnArbitraryApp() {
+    let parser = ActionArgumentParser(applications: ["FooEditor": "example.one", "FooEdator": "example.two", "Mail": "com.apple.mail"])
+    #expect(parser.parse(intent: "open_app", text: "Öffne FooEddtor") == nil)
+    #expect(parser.parse(intent: "open_app", text: "Öffne Mal") == nil)
+}
+
+@Test(arguments: ["Wechsel Schreibtisch", "Wechsle zum nächsten Schreibtisch", "Geh zum nächsten Desktop", "Wechsel Schreibtisch nach links"])
+func desktopChangesAreComputerActions(text: String) {
+    #expect(ActionArgumentParser().parse(intent: "switch_desktop", text: text) != nil)
+}
+
 @Test func hexPreparesOnceAndReusesTheWarmService() async throws {
     let code = #"""
 import sys,json,threading,http.server

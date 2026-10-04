@@ -44,6 +44,32 @@ private actor ToolSpy: ToolExecutor {
     }
 }
 
+private struct Planner: ActionPlanningReasoningEngine {
+    let result: ReasoningPlan
+    func plan(to text: String) async throws -> ReasoningPlan { result }
+    func respond(to text: String) async throws -> String { throw StubError.unavailable }
+}
+
+@Test func llmCanDelegateValidatedActionsBackToComputerUse() async throws {
+    let tools = ToolSpy()
+    let actions: [ToolRequest] = [.openApplication(bundleIdentifier: "example.application"), .switchDesktop(direction: .right)]
+    let router = AssistantRouter(decisions: DecisionStub(.failure), reasoning: Planner(result: .actions(actions)), tools: tools)
+    let response = try await router.handle("Öffne meine App und wechsel Schreibtisch")
+    #expect(response.route == .fastAction)
+    #expect(await tools.requests == actions)
+}
+
+@Test func llmActionsCannotRunArbitraryTerminalCommandsOrRepeatActions() async {
+    let note = ToolRequest.createNote(text: "test")
+    let terminal = ToolRequest.runExecutable(TerminalCommand(executablePath: "/bin/echo", arguments: ["test"], workingDirectory: URL(fileURLWithPath: "/tmp")))
+    for actions in [[], [note, note], [terminal], [note, .createNote(text: " ")]] {
+        let tools = ToolSpy()
+        let router = AssistantRouter(decisions: DecisionStub(.failure), reasoning: Planner(result: .actions(actions)), tools: tools)
+        await #expect(throws: (any Error).self) { try await router.handle("Befehl") }
+        #expect(await tools.requests.isEmpty)
+    }
+}
+
 @Test func confidentActionUsesToolWithoutReasoning() async throws {
     let request = ToolRequest.openApplication(bundleIdentifier: "com.apple.Safari")
     let decisions = DecisionStub(.decision(FastDecision(intent: .action(request), confidence: 0.95)))

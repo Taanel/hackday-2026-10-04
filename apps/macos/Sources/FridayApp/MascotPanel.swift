@@ -84,7 +84,6 @@ private struct FloatingAssistant: View {
             Button(action: open) {
                 AssistantOrb(phase: model.phase, size: .px64, animateIdle: true)
                     .padding(8)
-                    .background(.regularMaterial, in: Circle())
             }.buttonStyle(.plain)
             if model.isRecording {
                 Button("Stop") { model.stopRecording() }.buttonStyle(.bordered)
@@ -92,7 +91,8 @@ private struct FloatingAssistant: View {
                 Text(model.wakeEnabled ? "Hey Friday" : "Friday")
                     .font(.system(size: 10, weight: .semibold))
                     .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(.regularMaterial, in: Capsule())
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.8), radius: 2)
             }
         }
         .frame(width: 96, height: 144)

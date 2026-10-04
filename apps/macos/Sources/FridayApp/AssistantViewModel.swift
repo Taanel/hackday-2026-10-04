@@ -5,7 +5,7 @@ import FridayAdapters
 @MainActor final class AssistantViewModel: ObservableObject {
     @Published var input = "Öffne Safari"
     @Published var mode: InputMode = .assistant
-    @Published var speakResponses = false
+    @Published var speakResponses = true
     @Published private(set) var response = ""
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
@@ -47,7 +47,8 @@ import FridayAdapters
     static func live() -> AssistantViewModel {
         do {
             let configuration = try RuntimeConfiguration.load()
-            let parser = ActionArgumentParser(applications: MacApplicationCatalog.aliases())
+            let applications = MacApplicationCatalog.aliases()
+            let parser = ActionArgumentParser(applications: applications)
             let laya = configuration.worker("laya")
             let wake = MoonshineWakeWordDetector(worker: configuration.worker("wake"))
             let hex = HexService(configuration: configuration)
@@ -55,8 +56,8 @@ import FridayAdapters
             let reasoningLabel: String
             if configuration.reasoningProvider == "gemini" {
                 let name = configuration.geminiModel ?? "gemini-3.8-flash"
-                reasoning = GeminiReasoningEngine(model: name)
-                reasoningLabel = "Gemini · \(name)"
+                reasoning = GeminiReasoningEngine(model: name, applications: applications)
+                reasoningLabel = "Gemini Flash"
             } else {
                 reasoning = OllamaReasoningEngine(model: configuration.ollamaModel)
                 reasoningLabel = "Ollama · lokal"
@@ -246,9 +247,13 @@ import FridayAdapters
                 phase = .idle
             } catch {
                 guard generation == token else { return }
+                let failedDuringReasoning = phase == .reasoning
                 status = "Fehler"
                 response = error.localizedDescription
                 phase = .failed
+                if shouldSpeak && failedDuringReasoning {
+                    try? await speech.speak(response)
+                }
             }
             if generation == token, !shuttingDown {
                 do { try await voice?.rearm() }

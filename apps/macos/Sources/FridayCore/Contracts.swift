@@ -38,10 +38,13 @@ public struct TerminalCommand: Sendable, Equatable {
     }
 }
 
+public enum DesktopDirection: String, Sendable, Equatable { case left, right }
+
 public enum ToolRequest: Sendable, Equatable {
     case openApplication(bundleIdentifier: String)
     case searchSafari(query: String)
     case createNote(text: String)
+    case switchDesktop(direction: DesktopDirection)
     case runExecutable(TerminalCommand)
 
     /// Structural validation only. A real executor must also enforce its own policy.
@@ -53,6 +56,7 @@ public enum ToolRequest: Sendable, Equatable {
             return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .searchSafari(let query):
             return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && query.count <= 2_000
+        case .switchDesktop: return true
         case .runExecutable(let command):
             return command.executablePath.hasPrefix("/") && command.workingDirectory.isFileURL
         }
@@ -78,11 +82,13 @@ public struct FastDecision: Sendable {
 public enum FridayError: Error, LocalizedError, Sendable {
     case emptyInput
     case providerNotConfigured(String)
+    case invalidActionPlan
 
     public var errorDescription: String? {
         switch self {
         case .emptyInput: "Bitte gib einen Text ein."
         case .providerNotConfigured(let name): "\(name) ist noch nicht angebunden."
+        case .invalidActionPlan: "Das Modell hat keine gültige ausführbare Aktion geliefert."
         }
     }
 }
@@ -114,6 +120,15 @@ public protocol FastDecisionEngine: Sendable {
 
 public protocol ReasoningEngine: Sendable {
     func respond(to text: String) async throws -> String
+}
+
+public enum ReasoningPlan: Sendable, Equatable {
+    case answer(String)
+    case actions([ToolRequest])
+}
+
+public protocol ActionPlanningReasoningEngine: ReasoningEngine {
+    func plan(to text: String) async throws -> ReasoningPlan
 }
 
 public protocol ToolExecutor: Sendable {

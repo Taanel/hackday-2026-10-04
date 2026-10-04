@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import FridayCore
 
 public struct MacToolExecutor: ToolExecutor {
@@ -22,9 +23,32 @@ public struct MacToolExecutor: ToolExecutor {
             let filename = "Notiz-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8)).md"
             try text.write(to: notesDirectory.appendingPathComponent(filename), atomically: true, encoding: .utf8)
             return "Notiz gespeichert: \(filename)"
+        case .switchDesktop(let direction):
+            return try await Self.switchDesktop(direction)
         case .runExecutable:
             throw AdapterError.unavailable("Freie Terminalbefehle sind in V1 noch nicht eingerichtet.")
         }
+    }
+
+    @MainActor private static func switchDesktop(_ direction: DesktopDirection) throws -> String {
+        guard AXIsProcessTrusted() else {
+            throw AdapterError.unavailable("Für Schreibtischwechsel bitte Friday unter Systemeinstellungen → Datenschutz & Sicherheit → Bedienungshilfen erlauben. Den Button „Computersteuerung erlauben“ verwenden.")
+        }
+        let key: CGKeyCode = direction == .left ? 123 : 124
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) else {
+            throw AdapterError.unavailable("Die Tastenkombination konnte nicht gesendet werden.")
+        }
+        down.flags = .maskControl; up.flags = .maskControl
+        down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+        return "Schreibtischwechsel nach \(direction == .left ? "links" : "rechts") angefordert."
+    }
+
+    @MainActor public static func requestComputerControl() {
+        // Literal value of kAXTrustedCheckOptionPrompt; the SDK imports that
+        // CFString constant as a mutable global under Swift 6.
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
     }
 
     static func safariSearchURL(query: String) throws -> URL {

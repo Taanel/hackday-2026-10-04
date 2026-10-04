@@ -15,7 +15,39 @@ public struct ActionArgumentParser: Sendable {
 
     private let applicationAliases: [String: String]
     public init(applications: [String: String] = Self.applications) {
-        applicationAliases = applications
+        applicationAliases = Dictionary(grouping: applications, by: { MacApplicationCatalog.normalize($0.key) })
+            .compactMapValues { entries in
+                let ids = Set(entries.map(\.value))
+                return ids.count == 1 ? ids.first : nil
+            }
+    }
+
+    public func applicationIdentifier(named name: String) -> String? {
+        let key = MacApplicationCatalog.normalize(name)
+        if let exact = applicationAliases[key] { return exact }
+        guard key.count >= 5 else { return nil }
+        let limit = key.count >= 10 ? 2 : 1
+        let candidates = applicationAliases.compactMap { alias, identifier -> (Int, String)? in
+            guard abs(alias.count - key.count) <= limit else { return nil }
+            let distance = Self.editDistance(key, alias)
+            return distance <= limit ? (distance, identifier) : nil
+        }
+        guard let best = candidates.map(\.0).min() else { return nil }
+        let identifiers = Set(candidates.filter { $0.0 == best }.map(\.1))
+        return identifiers.count == 1 ? identifiers.first : nil
+    }
+
+    private static func editDistance(_ left: String, _ right: String) -> Int {
+        let a = Array(left), b = Array(right)
+        var row = Array(0...b.count)
+        for (i, letter) in a.enumerated() {
+            var next = [i + 1] + Array(repeating: 0, count: b.count)
+            for (j, other) in b.enumerated() {
+                next[j + 1] = min(row[j + 1] + 1, next[j] + 1, row[j] + (letter == other ? 0 : 1))
+            }
+            row = next
+        }
+        return row[b.count]
     }
 
     public func parse(intent: String, text: String) -> ToolRequest? {
@@ -34,10 +66,17 @@ public struct ActionArgumentParser: Sendable {
             return .searchSafari(query: query)
         case "open_app":
             guard let name = capture(
-                #"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:öffne|oeffne|starte|open|launch)\s+(?:(?:das\s+programm|die\s+app|den|die|das)\s+)?(.+?)(?:\s+bitte)?[.!?]*$"#, text
-            ) ?? capture(#"^(?:kannst|könntest)\s+du\s+(?:bitte\s+)?(.+?)\s+(?:öffnen|starten)[.!?]*$"#, text),
-                  let identifier = applicationAliases[MacApplicationCatalog.normalize(name)] else { return nil }
+                #"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:öffne|oeffne|starte|open|launch)\s+(?:bitte\s+)?(?:(?:das\s+programm|die\s+app|den|die|das)\s+)?(.+?)(?:\s+(?:bitte|für\s+mich))?[.!?]*$"#, text
+            ) ?? capture(#"^(?:kannst|könntest)\s+du\s+(?:bitte\s+)?(.+?)(?:\s+für\s+mich)?\s+(?:öffnen|starten)[.!?]*$"#, text)
+              ?? capture(#"^(?:bitte\s+)?(?:mach|mache)\s+(?:bitte\s+)?(.+?)\s+auf[.!?]*$"#, text),
+                  let identifier = applicationIdentifier(named: name) else { return nil }
             return .openApplication(bundleIdentifier: identifier)
+        case "switch_desktop":
+            let pattern = #"^(?:bitte\s+)?(?:wechsel|wechsle|wechsele|geh|gehe)\s+(?:bitte\s+)?(?:(?:zum|auf\s+den|zu\s+dem|den)\s+)?(?:(nächsten|vorherigen|linken|rechten)\s+)?(?:schreibtisch|desktop)(?:\s+nach\s+(links|rechts))?[.!?]*$"#
+            guard let expression = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+                  let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+            let words = (1...2).compactMap { index in Range(match.range(at: index), in: text).map { String(text[$0]).lowercased() } }
+            return .switchDesktop(direction: words.contains(where: { ["links", "linken", "vorherigen"].contains($0) }) ? .left : .right)
         case "create_note":
             guard let content = capture(
                 #"^(?:(?:bitte\s+)?(?:mach|mache|erstell|erstelle|schreib|schreibe)\s+(?:mir\s+)?(?:eine\s+)?(?:notiz|note)(?:\s+mit\s+(?:dem\s+)?(?:inhalt|text))?|notiz|note)(?:\s*[:,-]\s*|\s+)(.+)$"#, text

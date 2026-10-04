@@ -45,6 +45,15 @@ private struct Tools: ToolExecutor {
     )
 }
 
+@Test @MainActor func reasoningAnswersSpeakByDefault() async {
+    let speech = SpeechSpy()
+    let model = model(intent: .reasoning, speech: speech)
+    model.submit()
+    await model.task?.value
+    #expect(model.speakResponses)
+    #expect(speech.texts == ["Ein ausführlicher Plan."])
+}
+
 @Test @MainActor func directComputerActionStaysSilentEvenWhenTTSIsEnabled() async {
     let speech = SpeechSpy()
     let model = model(intent: .action(.openApplication(bundleIdentifier: "com.apple.Safari")), speech: speech)

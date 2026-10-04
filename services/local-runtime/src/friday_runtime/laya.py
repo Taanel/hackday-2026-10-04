@@ -19,13 +19,14 @@ from .protocol import (
 INTENT_QUESTION = {
     "intent": {
         "type": "choice",
-        "instructions": "Welche einzelne Absicht hat die deutsche Nutzeranfrage? Wähle die passendste Aktion.",
+        "instructions": "Welche Absicht hat die deutsche Anfrage? Wähle die passende Aktion.",
         "criteria": {
-            "open_app": "Genannte Mac-App öffnen/starten, z. B. Öffne Safari.",
-            "search_web": "Web-Suche im Browser, z. B. Suche nach Test auf Safari.",
+            "open_app": "Programm öffnen oder starten.",
+            "search_web": "Websuche im Browser ausführen.",
             "create_note": "Notiz mit diktiertem Inhalt speichern.",
-            "reasoning": "Frage beantworten, erklären, rechnen oder einen Plan erstellen.",
-            "unknown": "Unklar, mehrere Aktionen oder nicht unterstützt.",
+            "switch_desktop": "Mac-Schreibtisch wechseln.",
+            "reasoning": "Frage beantworten, erklären, rechnen oder planen.",
+            "unknown": "Unklar oder andere Aktion.",
         },
     }
 }

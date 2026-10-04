@@ -66,6 +66,29 @@ public struct AssistantRouter: Sendable {
         try Task.checkCancellation()
         await onPhase(.reasoning)
         try Task.checkCancellation()
+        if let planner = reasoning as? any ActionPlanningReasoningEngine {
+            let plan = try await planner.plan(to: text)
+            try Task.checkCancellation()
+            switch plan {
+            case .answer(let answer):
+                return AssistantResponse(text: answer, route: .reasoning)
+            case .actions(let actions):
+                guard (1...3).contains(actions.count), actions.allSatisfy({ request in
+                    if case .runExecutable = request { return false }
+                    return request.hasValidArguments
+                }), actions.enumerated().allSatisfy({ index, action in !actions.prefix(index).contains(action) }) else {
+                    throw FridayError.invalidActionPlan
+                }
+                var results: [String] = []
+                await onPhase(.acting)
+                for action in actions {
+                    try Task.checkCancellation()
+                    results.append(try await tools.execute(action))
+                }
+                try Task.checkCancellation()
+                return AssistantResponse(text: results.joined(separator: "\n"), route: .fastAction)
+            }
+        }
         let result = try await reasoning.respond(to: text)
         try Task.checkCancellation()
         return AssistantResponse(text: result, route: .reasoning)

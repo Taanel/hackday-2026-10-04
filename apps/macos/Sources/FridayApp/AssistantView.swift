@@ -94,6 +94,9 @@ struct AssistantView: View {
                     .font(.caption).foregroundStyle(.secondary)
 
                 HStack {
+                    Button("Computersteuerung erlauben", systemImage: "keyboard") {
+                        MacToolExecutor.requestComputerControl()
+                    }
                     Button("Notizen zeigen", systemImage: "folder") {
                         let directory = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes")
                         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
