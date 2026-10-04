@@ -1,0 +1,21 @@
+name: macOS scaffold
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Test routing and build targets
+        run: swift test --package-path apps/macos
+      - name: Build development app bundle
+        run: ./scripts/build-macos.sh
