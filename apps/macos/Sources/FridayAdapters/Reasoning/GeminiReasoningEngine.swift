@@ -27,18 +27,44 @@ private actor GeminiAvailability {
     func coolDown() { retryAfter = Date().addingTimeInterval(120) }
 }
 
+/// Keep the credential only in memory. Concurrent questions share one Keychain
+/// read, and Security's authorization dialog cannot block the main UI thread.
+private actor GeminiCredentials {
+    private let loader: @Sendable () throws -> String
+    private var key: String?
+    private var loading: Task<String, any Error>?
+
+    init(loader: @escaping @Sendable () throws -> String) { self.loader = loader }
+
+    func load() async throws -> String {
+        if let key { return key }
+        if let loading { return try await loading.value }
+        let loader = loader
+        let task = Task.detached { try loader() }
+        loading = task
+        do {
+            let value = try await task.value
+            key = value; loading = nil
+            return value
+        } catch {
+            loading = nil
+            throw error
+        }
+    }
+}
+
 /// Cloud fallback can answer or return bounded, typed actions to the local router.
 public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
     public let model: String
-    private let apiKey: @Sendable () throws -> String
+    private let credentials: GeminiCredentials
     private let session: URLSession
     private let applications: [String: String]?
     private let availability = GeminiAvailability()
-    private let backupModel = "gemini-3.5-flash-lite"
+    private var backupModel: String { model == "gemini-3.5-flash-lite" ? "gemini-3.8-flash" : "gemini-3.5-flash-lite" }
 
-    public init(model: String = "gemini-3.8-flash", session: URLSession = .shared, applications: [String: String]? = nil,
+    public init(model: String = "gemini-3.5-flash-lite", session: URLSession = .shared, applications: [String: String]? = nil,
                 apiKey: @escaping @Sendable () throws -> String = { try GeminiKeychain.load() }) {
-        self.model = model; self.session = session; self.apiKey = apiKey; self.applications = applications
+        self.model = model; self.session = session; self.credentials = GeminiCredentials(loader: apiKey); self.applications = applications
     }
 
     public func respond(to text: String) async throws -> String {
@@ -48,8 +74,9 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
 
     public func plan(to text: String) async throws -> ReasoningPlan {
         try Task.checkCancellation()
-        let key = try apiKey()
-        let models = await availability.primaryCoolingDown || model == backupModel ? [backupModel] : [model, backupModel]
+        let key = try await credentials.load()
+        try Task.checkCancellation()
+        let models = await availability.primaryCoolingDown ? [backupModel] : [model, backupModel]
         for (index, candidate) in models.enumerated() {
             let request = try Self.makeRequest(text: text, apiKey: key, model: candidate, applications: applications)
             do {
@@ -82,8 +109,8 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         var body: [String: Any] = [
             "contents": [["role": "user", "parts": [["text": text]]]],
-            "systemInstruction": ["parts": [["text": "Du bist Friday, ein Mac-Assistent. Antworte knapp auf Deutsch. Für Fragen, Erklärungen und Pläne gib Text zurück. Für ausdrücklich angeforderte Computeraktionen nutze ausschließlich die angebotenen Funktionen (maximal drei). Ein App-Start darf nur eine installierte App verwenden. Behaupte keine ausgeführten Aktionen: Funktionen werden anschließend von Friday ausgeführt. Du hast keinen allgemeinen Terminal- oder Klick-Zugriff und keine Web-Recherche. Safari-Suche öffnet nur die Suchseite. Sage bei nicht unterstützten Aktionen klar, was fehlt."]]],
-            "generationConfig": ["maxOutputTokens": 2048, "thinkingConfig": ["thinkingLevel": "LOW", "includeThoughts": false]]
+            "systemInstruction": ["parts": [["text": "Du bist Friday, ein Mac-Assistent. Antworte direkt und knapp auf Deutsch, normalerweise in ein bis drei kurzen Sätzen, außer der Nutzer verlangt mehr Details. Dein Text wird vorgelesen: keine Markdown-Formatierung, keine Einleitung. Für Fragen, Erklärungen und Pläne gib Text zurück, keine Notiz anlegen, außer ausdrücklich verlangt. Für ausdrücklich angeforderte Computeraktionen nutze ausschließlich die angebotenen Funktionen (maximal drei). Ein App-Start darf nur eine installierte App verwenden. Behaupte keine ausgeführten Aktionen: Funktionen werden anschließend von Friday ausgeführt. Du hast keinen allgemeinen Terminal- oder Klick-Zugriff und keine Web-Recherche. Safari-Suche öffnet nur die Suchseite. Sage bei nicht unterstützten Aktionen klar, was fehlt."]]],
+            "generationConfig": ["maxOutputTokens": 1024, "thinkingConfig": ["thinkingLevel": model.contains("flash-lite") ? "MINIMAL" : "LOW", "includeThoughts": false]]
         ]
         if let applications, !applications.isEmpty {
             func function(_ name: String, _ description: String, _ key: String, _ choices: [String]? = nil) -> [String: Any] {

@@ -1,7 +1,7 @@
 # Friday — lokaler Assistent für macOS
 
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
-„Hey Friday“, deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
+„Friday“ und „Hey Friday“, deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
 optional mit der macOS-Stimme vorgelesen werden.
 
@@ -29,21 +29,27 @@ python3 scripts/configure-gemini.py
 
 Der persönliche Schlüssel wird im macOS-Schlüsselbund gespeichert. `runtime.json`
 enthält nur Provider/Modell; API-Keys werden nicht in Git gespeichert. Beim ersten
-LLM-Aufruf kann macOS nach Schlüsselbundzugriff für Friday fragen. Nur der
+LLM-Aufruf kann macOS nach Schlüsselbundzugriff für Friday fragen. Mit dem Mac-
+Anmeldepasswort „Immer erlauben“ wählen. Der Schlüssel wird danach nur im Arbeitsspeicher
+dieser App-Sitzung gehalten. Ad-hoc signierte Test-Builds können nach jedem Update
+erneut fragen. Für dauerhafte Wiedererkennung eine vorhandene Apple-Code-Signing-
+Identität mit `FRIDAY_SIGNING_IDENTITY` beim Bauen auswählen oder deren Namen/Hash
+in `~/Library/Application Support/Friday/signing-identity` speichern. Nur der
 Reasoning-Pfad sendet den Anfrage-Text an Google; Hex, Wake und Laya bleiben lokal.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
 ## Direkt testen
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
-2. „Hey Friday“ aktivieren und macOS-Mikrofonzugriff erlauben.
+2. „Friday / Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
    Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
    anklicken und dreimal nur die Phrase einsprechen, jeweils kurz still sein.
    Nach jeder Probe den Button für die nächste Aufnahme verwenden. Das persönliche
    Klangmuster wird lokal gespeichert und anschließend automatisch aktiviert.
    „Zurücksetzen“ entfernt das Profil. Die Anlernfunktion ist ein Prototyp;
    ihre Zuverlässigkeit mit der eigenen Stimme muss live geprüft werden.
-3. „Hey Friday, öffne Safari“ sagen; eine kurze Sprechpause beendet die Aufnahme.
+3. „Friday, öffne Safari“ oder „Hey Friday, öffne Safari“ sagen; etwa 0,75 Sekunden
+   Stille beenden die Aufnahme. Das persönliche Hey-Friday-Profil bleibt zusätzlich aktiv.
 4. „Hey Friday, suche nach test auf Safari“ öffnet eine Google-Suche in Safari.
    Auch „Öffne Safari und suche nach Test“ und „Suche nach Test“ funktionieren als direkte Safari-Aktion.
    „Kannst du Shaper 3D öffnen?“ erkennt die installierte App Shapr3D auch mit dieser
@@ -54,8 +60,9 @@ Alternativ „Sprechen“ drücken oder einen Befehl als Text eingeben. „Abbre
 stoppt die laufende Verarbeitung; das Overlay hat während der Aufnahme eine Stop-Taste.
 Wake ist standardmäßig aus und pausiert während Aufnahme, Verarbeitung und TTS.
 LLM-Antworten werden standardmäßig mit der kostenlosen lokalen macOS-Sprach-API
-vorgelesen; der Schalter kann die Sprachausgabe ausschalten. Ein überlastetes
-Gemini 3.8 Flash wird durch das geprüfte Gemini 3.5 Flash Lite ersetzt. Das
+vorgelesen und direkt im Fenster angezeigt; der Schalter kann die Sprachausgabe
+ausschalten. Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard.
+Bei Überlastung übernimmt Gemini 3.8 Flash mit niedrigem Thinking. Das
 überlastete Modell wird danach zwei Minuten lang nicht erneut angefragt.
 
 „Wechsel Schreibtisch“, „Wechsle zum nächsten Schreibtisch“ und „Wechsel Schreibtisch
@@ -77,11 +84,11 @@ App-Starts und Notizen bleiben stumm.
 
 | Funktion | Erste Version |
 | --- | --- |
-| Wake | Persönliche lokale Klangmuster (3 Sprachproben, DTW), sonst Moonshine Tiny Streaming |
+| Wake | Moonshine Tiny Streaming für Friday / Hey Friday; zusätzlich persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
-| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus fünf Intents |
+| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus sechs Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel |
-| Komplexe Antwort | Gemini 3.8 Flash, Ersatz 3.5 Flash Lite; alternativ Ollama lokal |
+| Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
 | Text → Sprache | macOS-Systemstimme; optionaler Cloud-Adapter später |
 | Oberfläche | Thinking Orb als SwiftUI/AppKit-Overlay; native MIT-Animationen |
 
@@ -108,7 +115,9 @@ Die Moonshine-Standarderkennung hat Schwierigkeiten mit der deutschen Anna-Stimm
 Mit drei persönlichen Anna-Sprachproben erkennt der neue Klangmuster-Prototyp
 auch „Hey Friday“ direkt vor einem Befehl; getestete andere Sätze lösen nicht aus.
 Bei fehlender Aktivierung neu anlernen oder „Sprechen“ verwenden.
-Die Entwicklungs-App ist lokal ad-hoc signiert und kein notarisiertes Release.
+Ohne konfigurierte Apple-Signatur wird ad-hoc signiert. Die Entwicklungs-App ist
+kein notarisiertes Release. Bereits laufende Apps werden direkt aktiviert; der
+Kaltstart einer App hängt von deren eigener Startzeit ab.
 
 [Architektur](docs/architecture.md) · [Integrationen](docs/integrations.md) ·
 [Roadmap](docs/roadmap.md) · [CONTRIBUTING.md](CONTRIBUTING.md)

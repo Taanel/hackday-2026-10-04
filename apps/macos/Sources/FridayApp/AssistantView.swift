@@ -20,7 +20,7 @@ struct AssistantView: View {
                         .scaleEffect(0.625).frame(width: 40, height: 40)
                 }
 
-                Text("Sag „Hey Friday, öffne Safari“ oder „Hey Friday, mach eine Notiz: Milch kaufen“.")
+                Text("Sag „Friday, öffne Safari“ oder „Hey Friday, erklär mir einen Quantencomputer“.")
                     .font(.callout).foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
@@ -35,8 +35,18 @@ struct AssistantView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
 
+                if !model.response.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Antwort").font(.headline)
+                        Text(model.response).textSelection(.enabled)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                }
+
                 HStack {
-                    Toggle("Hey Friday aktivieren", isOn: Binding(
+                    Toggle("Friday / Hey Friday aktivieren", isOn: Binding(
                         get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }
                     ))
                     .toggleStyle(.switch)
@@ -104,11 +114,6 @@ struct AssistantView: View {
                     }
                     if !model.isReady { Button("Erneut laden") { model.prepare() } }
                 }
-
-                Text(model.response.isEmpty ? "Hier erscheint die Antwort." : model.response)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(minHeight: 80, alignment: .topLeading)
 
                 DisclosureGroup("Orb-Vorschau · 9 Animationen", isExpanded: $showsOrbGallery) {
                     OrbGallery()

@@ -45,9 +45,7 @@ private final class Resampler: @unchecked Sendable {
     private var generation = UUID()
     private var ring: [Float] = []
     private var recording: [Float] = []
-    private var elapsedSamples = 0
-    private var silenceSamples = 0
-    private var heardSpeech = false
+    private var endpoint = CommandEndpoint()
 
     public init() {}
 
@@ -92,12 +90,8 @@ private final class Resampler: @unchecked Sendable {
         if ring.count > 128_000 { ring.removeFirst(ring.count - 128_000) }
         if isRecording {
             recording.append(contentsOf: samples)
-            elapsedSamples += samples.count
-            let rms = sqrt(samples.reduce(0) { $0 + Double($1 * $1) } / Double(samples.count))
-            if rms > 0.009 { heardSpeech = true; silenceSamples = 0 }
-            else { silenceSamples += samples.count }
             // A brief pause ends a spoken command. A bounded recording avoids a lost endpoint.
-            if (elapsedSamples > 20_000 && silenceSamples > 17_600 && heardSpeech) || elapsedSamples > 480_000 {
+            if endpoint.accept(samples) {
                 do { if let file = try finishRecording() { onRecordingEnded?(file) } }
                 catch { onError?(error) }
             }
@@ -110,8 +104,7 @@ private final class Resampler: @unchecked Sendable {
         let count = fromSample.map { max(0, min(ring.count, totalSamples - $0)) } ?? 0
         recording = Array(ring.suffix(count))
         isRecording = true
-        elapsedSamples = 0; silenceSamples = 0
-        heardSpeech = count > 0
+        endpoint = CommandEndpoint(preRollSamples: count)
     }
 
     public func finishRecording() throws -> URL? {

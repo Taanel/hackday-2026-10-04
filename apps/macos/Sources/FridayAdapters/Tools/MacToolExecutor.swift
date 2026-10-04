@@ -77,6 +77,11 @@ public struct MacToolExecutor: ToolExecutor {
             throw AdapterError.unavailable("Das gewünschte Programm ist nicht installiert.")
         }
         try Task.checkCancellation()
+        // Switching to a running app needs no Launch Services launch request.
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first,
+           running.activate(options: [.activateAllWindows]) {
+            return "\(app.deletingPathExtension().lastPathComponent) geöffnet."
+        }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
         _ = try await NSWorkspace.shared.openApplication(at: app, configuration: config)

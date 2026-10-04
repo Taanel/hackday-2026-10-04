@@ -113,5 +113,8 @@ func speechStateLastsUntilPlaybackFinishesOrIsCancelled(cancel: Bool) async thro
 @Test @MainActor func confirmedWakePrefixIsRemovedOnlyAtBeginning() {
     #expect(AssistantViewModel.removeWakePrefix("Hey Friday, öffne Safari.") == "öffne Safari.")
     #expect(AssistantViewModel.removeWakePrefix("Hey Friede, öffne Safari.") == "öffne Safari.")
+    #expect(AssistantViewModel.removeWakePrefix("Friday, öffne Blender.") == "öffne Blender.")
+    #expect(AssistantViewModel.removeWakePrefix("Friday!") == "")
+    #expect(AssistantViewModel.removeWakePrefix("Fridaynight ist ein Wort") == "Fridaynight ist ein Wort")
     #expect(AssistantViewModel.removeWakePrefix("Notiz: Hey Friday ist der Name.") == "Notiz: Hey Friday ist der Name.")
 }

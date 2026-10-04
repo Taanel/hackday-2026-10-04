@@ -15,19 +15,22 @@ HexService startet das originale ARM64-Release 2.1.24 mit `service --embedded`,
 prüft API 2 und verwendet den lokalen Bearer-authentifizierten HTTP-Service.
 Das Setup installiert Whisper large-v3-turbo für Deutsch; Runtime-Downloads sind aus.
 
-## „Hey Friday“
+## „Friday“ / „Hey Friday“
 
 Optionales lokales Anlernen: dreimal die Phrase aufnehmen. Der Worker speichert
 normalisierte spektrale Merkmale in `~/Library/Application Support/Friday/VoiceProfile/profile.json`.
 Temporäre WAVs werden anschließend gelöscht. Subsequence-DTW sucht das Klangmuster
 in rollierenden PCM-Fenstern; Lautstärke und Sprechtempo dürfen sich ändern.
-Das ist eine Testfunktion, keine Sprecheridentifikation. Mit einem Profil ersetzt
-sie Moonshine für die Aktivierung; „Zurücksetzen“ wechselt zur Standarderkennung.
+Das ist eine Testfunktion, keine Sprecheridentifikation. Das persönliche Profil
+läuft zusätzlich zu Moonshine, damit auch „Friday“ alleine aktiviert.
+„Zurücksetzen“ entfernt nur das persönliche Profil.
 
 Moonshine Tiny Streaming verarbeitet kontinuierlich lokale AudioInput-Samples
-und meldet die vollständige Phrase „Hey Friday“. Die englischen offenen Tiny-Gewichte
+und meldet das Wort „Friday“ oder die vollständige Phrase „Hey Friday“ am Beginn
+einer Äußerung. Die englischen offenen Tiny-Gewichte
 werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der nativen App.
-Abnahme: „Hey Friday“ aktiviert den Assistenten, Stille/andere Phrasen nicht;
+Abnahme: „Friday“ und „Hey Friday“ aktivieren den Assistenten, Stille oder
+Erwähnungen mitten in einem Satz nicht;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
 Wake-Fehler starten nur den Wake-Helper neu. Transport-Sitzung und Stream-Generation
 verhindern, dass alte Ereignisse nach einem Neustart erneut aktivieren. Audiosamples
@@ -81,16 +84,22 @@ auf Revision `d06640864eb4adc2fe240f899a44ee6210779782` gepinnt.
 `AssistantOrb` ist der app-eigene Wrapper; die Oberfläche benötigt kein npm,
 React oder WebView. Der Upstream-Copyright-Hinweis liegt auch in den App-Ressourcen.
 
-## Gemini 3.8 Flash
+## Gemini Flash-Lite
 
 Optionaler Antwort-Provider über Googles GenerateContent-API. Der persönliche
 API-Schlüssel wird im macOS-Schlüsselbund unter dev.hackday.friday.gemini gespeichert.
 `python3 scripts/configure-gemini.py` wählt das Cloud-Fallback; das normale lokale
 Setup behält die gewählte Fallback-Konfiguration bei. Googles
-[Modell-Dokumentation](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
-beschreibt den geprüften Modellnamen. Bei 503 und anderen vorübergehenden Fehlern
-übernimmt Gemini 3.5 Flash Lite. Ein erfolgreicher Modelltest bestätigt Antworten
+[Thinking-Dokumentation](https://ai.google.dev/gemini-api/docs/thinking)
+beschreibt die verfügbaren Stufen. Standard ist Gemini 3.5 Flash-Lite mit MINIMAL;
+das ist die kleinste Thinking-Stufe, kein garantiert vollständig abgeschaltetes
+Reasoning. Bei 503 und anderen vorübergehenden Fehlern übernimmt Gemini 3.8 Flash
+mit LOW. Ein erfolgreicher Modelltest bestätigt Antworten
 und Function Calling. App-Starts, Safari-Suche, Notizen und Schreibtischwechsel
 bleiben lokale Toolaktionen. Gemini kann diese als typisierte Aufträge an Friday
 zurückgeben; unbekannte Funktionen oder nicht installierte App-Namen werden
-abgelehnt. Finale Antworten werden standardmäßig lokal vorgelesen.
+abgelehnt. Finale Antworten werden standardmäßig lokal vorgelesen. Der Schlüssel
+wird pro Engine-Sitzung einmal außerhalb des UI-Threads aus dem Schlüsselbund
+gelesen und ausschließlich im Arbeitsspeicher gehalten. Mit einer stabilen Apple-
+Signatur bleibt die vom Nutzer über „Immer erlauben“ erteilte Freigabe auch bei
+Updates derselben Signieridentität erhalten.

@@ -55,9 +55,9 @@ import FridayAdapters
             let reasoning: any ReasoningEngine
             let reasoningLabel: String
             if configuration.reasoningProvider == "gemini" {
-                let name = configuration.geminiModel ?? "gemini-3.8-flash"
+                let name = configuration.geminiModel ?? "gemini-3.5-flash-lite"
                 reasoning = GeminiReasoningEngine(model: name, applications: applications)
-                reasoningLabel = "Gemini Flash"
+                reasoningLabel = name.contains("flash-lite") ? "Gemini Flash-Lite" : "Gemini Flash"
             } else {
                 reasoning = OllamaReasoningEngine(model: configuration.ollamaModel)
                 reasoningLabel = "Ollama · lokal"
@@ -77,7 +77,7 @@ import FridayAdapters
                 model.phase = phase
                 model.isRecording = phase == .recording
                 model.isWorking = phase == .recording
-                if phase == .listening { model.status = "Höre auf „Hey Friday“ · lokal" }
+                if phase == .listening { model.status = "Höre auf „Friday“ oder „Hey Friday“ · lokal" }
                 else if phase == .recording { model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme." }
             }
             voice.onCommand = { [weak model] file, stripWake in model?.processRecording(file, stripWake: stripWake) }
@@ -268,7 +268,7 @@ import FridayAdapters
         switch phase {
         case .deciding: status = isLive ? "Laya entscheidet …" : "Entscheidung · Demo"
         case .acting: status = isLive ? "Computeraktion läuft …" : "Computeraktion · Vorschau"
-        case .reasoning: status = isLive ? "\(reasoningLabel) denkt nach …" : "LLM · Demo"
+        case .reasoning: status = isLive ? "\(reasoningLabel) antwortet …" : "LLM · Demo"
         default: break
         }
     }
@@ -294,7 +294,7 @@ import FridayAdapters
                 guard generation == token, !shuttingDown else { return }
                 isRecording = false; isWorking = false
                 if !wakeEnabled { phase = .idle }
-                status = wakeEnabled ? "Höre auf „Hey Friday“ · lokal" : "Abgebrochen"
+                status = wakeEnabled ? "Höre auf „Friday“ oder „Hey Friday“ · lokal" : "Abgebrochen"
                 task = nil
             }
         }
@@ -338,7 +338,7 @@ import FridayAdapters
 
     static func removeWakePrefix(_ text: String) -> String {
         // Called only after confirmed audio wake detection. German Whisper may spell Friday as Friede.
-        text.replacingOccurrences(of: #"^\s*(?:hey|hi|hei|he|hej)\s*[,!]?\s*(?:friday|friede|freitag|fridey|freidei)\b\s*[,.:;!?-]*\s*"#,
+        text.replacingOccurrences(of: #"^\s*(?:(?:hey|hi|hei|he|hej)\s*[,!]?\s*)?(?:friday|friede|freitag|fridey|freidei)\b\s*[,.:;!?-]*\s*"#,
                                   with: "", options: [.regularExpression, .caseInsensitive])
     }
 }

@@ -16,6 +16,6 @@ result = subprocess.run(["security", "add-generic-password", "-U", "-a", "Friday
 if result.returncode:
     raise SystemExit("Schlüsselbund konnte nicht aktualisiert werden.")
 config = json.loads(config_path.read_text())
-config.update(reasoningProvider="gemini", geminiModel="gemini-3.8-flash")
+config.update(reasoningProvider="gemini", geminiModel="gemini-3.5-flash-lite")
 config_path.write_text(json.dumps(config, indent=2))
-print("Gemini 3.8 Flash eingerichtet. Friday neu starten.")
+print("Gemini Flash-Lite mit minimalem Thinking eingerichtet. Friday neu starten.")

@@ -54,18 +54,37 @@ def event(text="Hey Friday, öffne Safari.", *, start=0.125, line_id=7):
     return SimpleNamespace(line=SimpleNamespace(text=text, start_time=start, line_id=line_id))
 
 
-@pytest.mark.parametrize("text", ["Hey Friday", " HEY, FRIDAY! ", "Hey—Friday, öffne Safari", "\"hey friday\" please"])
+@pytest.mark.parametrize("text", ["Hey Friday", " HEY, FRIDAY! ", "Hey—Friday, öffne Safari", "\"hey friday\" please", "Friday", "Friday, open Blender", "FRIDAY!"])
 def test_normalized_whole_wake_prefix_matches(text):
     from friday_runtime.wake import has_wake_prefix
 
     assert has_wake_prefix(text)
 
 
-@pytest.mark.parametrize("text", ["Friday", "hey", "say hey friday", "hey fridaynight", "heyfriday", "hey friday2", "where is Friday?"])
-def test_friday_alone_substrings_and_mid_sentence_mentions_do_not_match(text):
+@pytest.mark.parametrize("text", ["hey", "say hey friday", "hey fridaynight", "heyfriday", "hey friday2", "where is Friday?", "Fridaynight", "Friday2"])
+def test_substrings_and_mid_sentence_mentions_do_not_match(text):
     from friday_runtime.wake import has_wake_prefix
 
     assert not has_wake_prefix(text)
+
+
+def test_friday_still_works_with_a_personal_hey_friday_profile():
+    from friday_runtime.wake import WakeWorker
+
+    class Personal:
+        def reset(self): pass
+        def add_audio(self, samples): return None
+
+    transcriber = Transcriber()
+    output = []
+    worker = WakeWorker(transcriber, output.append, listener_base=object, personal=Personal())
+    worker.resume()
+    assert len(transcriber.streams) == 1
+    transcriber.streams[-1].audio_event = event("Friday, open Blender", start=0.0)
+    worker.add_audio([0.0] * 4000)
+    assert output == [{"type": "wake", "text": "Friday, open Blender", "startSample": 0,
+                       "audioSamples": 4000, "generation": 1}]
+    worker.close()
 
 
 def test_one_wake_per_generation_reports_sample_offsets():

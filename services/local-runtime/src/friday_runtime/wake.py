@@ -22,7 +22,7 @@ from .protocol import (
 def has_wake_prefix(text: str) -> bool:
     normalized = unicodedata.normalize("NFKC", text).casefold()
     words = re.findall(r"[^\W_]+", normalized)
-    return words[:2] == ["hey", "friday"]
+    return words[:1] == ["friday"] or words[:2] == ["hey", "friday"]
 
 
 def _listener(worker, generation: int, base: type):
@@ -99,7 +99,10 @@ class WakeWorker:
                 self.fired = True
                 self.emit({"type": "wake", "text": "Hey Friday", "startSample": start,
                            "audioSamples": self.audio_samples, "generation": self.generation})
-        elif self.stream is not None:
+        # The personal profile was trained with "Hey Friday". Keep transcript
+        # wake detection alongside it so "Friday" alone also works. fired
+        # prevents the two detectors from emitting the same wake twice.
+        if self.stream is not None and not self.fired:
             self.stream.add_audio(samples, SAMPLE_RATE)
 
     def pause(self) -> None:
@@ -120,8 +123,6 @@ class WakeWorker:
         self.fired = False
         if self.personal is not None:
             self.personal.reset()
-            self.active = True
-            return
         stream = self.transcriber.create_stream(update_interval=0.25)
         self.stream = stream
         stream.add_listener(_listener(self, self.generation, self.listener_base))

@@ -27,7 +27,7 @@ private final class GeminiRetryProtocol: URLProtocol, @unchecked Sendable {
     configuration.protocolClasses = [GeminiRetryProtocol.self]
     let session = URLSession(configuration: configuration)
     defer { session.invalidateAndCancel() }
-    let engine = GeminiReasoningEngine(session: session, apiKey: { "test-key" })
+    let engine = GeminiReasoningEngine(model: "gemini-3.8-flash", session: session, apiKey: { "test-key" })
     #expect(try await engine.respond(to: "Erkläre X") == "Die Antwort.")
     #expect(try await engine.respond(to: "Erkläre Y") == "Die Antwort.")
     let paths = GeminiRetryProtocol.requests()
@@ -57,6 +57,51 @@ private final class GeminiRetryProtocol: URLProtocol, @unchecked Sendable {
     #expect(body["systemInstruction"] != nil)
     #expect(body["tools"] == nil)
     #expect(!String(data: request.httpBody!, encoding: .utf8)!.contains("test-key"))
+}
+
+@Test func flashLiteUsesTheFastestThinkingSetting() throws {
+    let request = try GeminiReasoningEngine.makeRequest(text: "Was ist ein Mac?", apiKey: "test-key", model: "gemini-3.5-flash-lite")
+    let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+    let generation = body["generationConfig"] as! [String: Any]
+    let thinking = generation["thinkingConfig"] as! [String: Any]
+    #expect(thinking["thinkingLevel"] as? String == "MINIMAL")
+    let flash = try GeminiReasoningEngine.makeRequest(text: "Plane X", apiKey: "test-key", model: "gemini-3.8-flash")
+    let flashBody = try JSONSerialization.jsonObject(with: flash.httpBody!) as! [String: Any]
+    let flashGeneration = flashBody["generationConfig"] as! [String: Any]
+    #expect((flashGeneration["thinkingConfig"] as! [String: Any])["thinkingLevel"] as? String == "LOW")
+}
+
+private final class CredentialLoads: @unchecked Sendable {
+    private let lock = NSLock()
+    private var loads = 0
+    func load() -> String { lock.lock(); defer { lock.unlock() }; loads += 1; return "test-key" }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return loads }
+}
+
+private final class GeminiSuccessProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"candidates":[{"content":{"parts":[{"text":"Antwort."}]}}]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+@Test func concurrentGeminiQuestionsReadCredentialsOnlyOncePerSession() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [GeminiSuccessProtocol.self]
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    let loads = CredentialLoads()
+    let engine = GeminiReasoningEngine(session: session, apiKey: { loads.load() })
+    async let first = engine.respond(to: "Frage eins")
+    async let second = engine.respond(to: "Frage zwei")
+    _ = try await (first, second)
+    _ = try await engine.respond(to: "Frage drei")
+    #expect(loads.count == 1)
+    #expect(engine.model == "gemini-3.5-flash-lite")
 }
 
 @Test func geminiReturnsFinalTextAndSanitizesFailures() throws {

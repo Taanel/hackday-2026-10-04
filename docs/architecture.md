@@ -5,7 +5,7 @@ Die Demo-Provider sind ausschließlich für isolierte Tests verfügbar.
 
 ```mermaid
 flowchart TD
-    Wake[Hey Friday: Moonshine lokal] --> Capture[Zentrale AudioInput / Ringpuffer]
+    Wake[Friday / Hey Friday: Moonshine + persönliches Klangmuster lokal] --> Capture[Zentrale AudioInput / Ringpuffer]
     Button[Sprechen] --> Capture
     Capture --> Hex[Hex: deutsches WAV zu Text]
     Hex --> Laya[Laya Core ML: Intent und Konfidenz]
@@ -20,10 +20,11 @@ flowchart TD
 AudioInput ist der einzige Mikrofonbesitzer. Es konvertiert auf 16-kHz-Mono,
 puffert acht Sekunden und schickt Samples an den Wake-Worker. Nach einem Wake
 beginnt die Aufnahme am gemeldeten Sample-Offset, einschließlich bereits gepufferter
-Sprache. Eine Sprechpause beendet den Befehl; spätestens nach 30 Sekunden endet er.
+Sprache. Etwa 0,75 Sekunden Stille beenden den Befehl; spätestens nach 30 Sekunden
+endet er. Bereits gepufferte Sprache zählt zur Mindestlänge von 0,8 Sekunden.
 Hex erhält PCM16-WAV-Dateien über den authentifizierten Loopback-Service.
 
-Laya wählt open_app, search_web, create_note, reasoning oder unknown. Ein separater Parser
+Laya wählt open_app, search_web, create_note, switch_desktop, reasoning oder unknown. Ein separater Parser
 akzeptiert nur vollständige unterstützte Aktionen und automatisch entdeckte App-Namen.
 Die Live-Konfidenzgrenze 0.75 ist vorläufig: die ersten deutschen Inferenztests
 rechtfertigen sie für den Prototyp; weitere Kalibrierung bleibt offen. Ungültige,
@@ -55,9 +56,12 @@ ThinkingOrbsKit-Version ist unter Vendor gepinnt und mit MIT-Hinweisen gebündel
 
 GeminiReasoningEngine verwendet die GenerateContent-API mit Header-Authentifizierung,
 12-Sekunden-Deadline pro Aufruf und finalem Antworttext ohne Thinking-Parts. Bei
-Überlastung nutzt es Gemini 3.5 Flash Lite und pausiert das primäre Modell für
-zwei Minuten. Der persönliche
-API-Schlüssel kommt aus dem macOS-Schlüsselbund. HTTP-Fehler werden sanitisiert.
+Überlastung wechselt es zwischen primärem Gemini 3.5 Flash-Lite (MINIMAL) und
+Gemini 3.8 Flash (LOW); das überlastete primäre Modell pausiert für zwei Minuten.
+Der persönliche API-Schlüssel kommt einmal pro Engine-Sitzung außerhalb des
+UI-Threads aus dem macOS-Schlüsselbund und bleibt nur im Arbeitsspeicher.
+HTTP-Fehler werden sanitisiert. Kurze, vorlesbare Antworten sind der Standard;
+Fragen werden nicht automatisch in Notizen umgewandelt.
 Safari-Suchen öffnen einen URL-encoded Google-Suchlink ausdrücklich mit Safari;
 sie liefern keine LLM-Zusammenfassung der Ergebnisse. Der Mikrofon-Tap ist explizit
 Sendable, weil AVAudioEngine ihn außerhalb des MainActor aufruft.
@@ -66,6 +70,7 @@ MacApplicationCatalog liest Namen und Bundle-IDs aus Applications, System-Applic
 und dem persönlichen Applications-Ordner. Leerzeichen und Interpunktion im Namen
 werden normalisiert; eindeutige kleine Schreibfehler werden korrigiert.
 Mehrdeutige Namen werden nicht geraten.
-Der Executor öffnet die tatsächlich über Launch Services gefundene Anwendung.
+Der Executor aktiviert laufende Apps direkt und öffnet ansonsten die tatsächlich
+über Launch Services gefundene Anwendung.
 Vollständig erkannte Safari-Suchen werden vor Laya sprachlich normalisiert;
 die Klassifikation und Konfidenz bleiben echte Laya-Ausgaben.
