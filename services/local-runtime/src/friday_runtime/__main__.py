@@ -13,9 +13,10 @@ def main() -> int:
         commands = parser.add_subparsers(dest="command", required=True)
         prepare_parser = commands.add_parser("prepare", help="Download pinned local models once")
         prepare_parser.add_argument("--model-root", required=True, type=Path)
-        for name in ("laya", "wake"):
+        for name in ("laya", "wake", "tts", "prepare-tts"):
             worker_parser = commands.add_parser(name, help="Run the offline " + name + " worker")
             worker_parser.add_argument("--model-dir", required=True, type=Path)
+            if name == "wake": worker_parser.add_argument("--model-arch", choices=("tiny", "small"), default="tiny")
         args = parser.parse_args()
         try:
             if args.command == "prepare":
@@ -26,10 +27,18 @@ def main() -> int:
                 from .laya import run_laya
 
                 run_laya(args.model_dir, sys.stdin.buffer, emit)
-            else:
+            elif args.command == "wake":
                 from .wake import run_wake
 
-                run_wake(args.model_dir, sys.stdin.buffer, emit)
+                run_wake(args.model_dir, sys.stdin.buffer, emit, architecture=args.model_arch)
+            elif args.command == "tts":
+                from .tts import run_tts
+
+                run_tts(args.model_dir, sys.stdin.buffer, emit)
+            else:
+                from .tts import prepare_tts
+
+                emit(prepare_tts(args.model_dir))
         except KeyboardInterrupt:
             return 130
         except BrokenPipeError:

@@ -43,7 +43,7 @@ struct HomeAssistantSettingsView: View {
                 }
                 Text(settings.status.isEmpty ? "Token im Home-Assistant-Profil erstellen. Zugangsdaten bleiben lokal auf diesem Mac." : settings.status)
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Zum Beispiel: Schalte Wohnzimmer Licht an · Dimme Wohnzimmer Licht auf 30 Prozent · Aktiviere Szene Abend.")
+                Text("Zum Beispiel: Wohnzimmer an · Licht im Wohnzimmer aus · Dimme Wohnzimmer Licht auf 30 Prozent · Aktiviere Szene Abend.")
                     .font(.caption).foregroundStyle(.secondary)
                 ForEach(settings.entities.prefix(40)) { entity in
                     VStack(alignment: .leading, spacing: 2) {

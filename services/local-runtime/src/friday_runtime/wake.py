@@ -22,7 +22,10 @@ from .protocol import (
 def has_wake_prefix(text: str, *, allow_bare: bool = False) -> bool:
     normalized = unicodedata.normalize("NFKC", text).casefold()
     words = re.findall(r"[^\W_]+", normalized)
-    return words[:2] == ["hey", "friday"] or (allow_bare and words[:1] == ["friday"])
+    # Fixed spellings observed in German ASR for the spoken English name.
+    # Still require the complete two-word prefix; no substring/fuzzy match.
+    names = {"friday", "frida", "freda", "freidei", "fridey", "freitag"}
+    return (len(words) >= 2 and words[0] == "hey" and words[1] in names) or (allow_bare and words[:1] == ["friday"])
 
 
 def _listener(worker, generation: int, base: type):
@@ -52,6 +55,8 @@ class WakeWorker:
         self.personal = personal
         self.allow_bare = allow_bare
         self.allow_personal = allow_personal
+        self.diagnostics = False
+        self.last_diagnostic = -SAMPLE_RATE
 
     def accept_line(self, generation: int, line) -> None:
         if generation != self.generation or not self.active or self.fired:
@@ -60,8 +65,12 @@ class WakeWorker:
         if not isinstance(text, str):
             return
         try:
-            if len(text.encode("utf-8")) > MAX_TEXT_BYTES or not has_wake_prefix(text, allow_bare=self.allow_bare):
+            if len(text.encode("utf-8")) > MAX_TEXT_BYTES:
                 return
+            if self.diagnostics and self.audio_samples - self.last_diagnostic >= SAMPLE_RATE:
+                self.last_diagnostic = self.audio_samples
+                self.emit({"type": "transcript", "text": text[:160], "generation": self.generation})
+            if not has_wake_prefix(text, allow_bare=self.allow_bare): return
         except UnicodeError:
             return
         # Moonshine's transcript_line_t.start_time is seconds relative to the
@@ -123,6 +132,7 @@ class WakeWorker:
         self.generation += 1
         self.audio_samples = 0
         self.fired = False
+        self.last_diagnostic = -SAMPLE_RATE
         if self.personal is not None:
             self.personal.reset()
         stream = self.transcriber.create_stream(update_interval=0.25)
@@ -141,18 +151,20 @@ class WakeWorker:
             self.transcriber.close()
 
 
-def _create_transcriber(path: str):
+def _create_transcriber(path: str, *, architecture: str = "tiny"):
     from moonshine_voice import ModelArch, TranscriptEventListener, Transcriber
 
-    return Transcriber(model_path=path, model_arch=ModelArch.TINY_STREAMING), TranscriptEventListener
+    arch = ModelArch.SMALL_STREAMING if architecture == "small" else ModelArch.TINY_STREAMING
+    return Transcriber(model_path=path, model_arch=arch,
+                       options={"keyterms": "Hey Friday", "keyterm_boost": "2.0", "vad_threshold": "0.35", "return_audio_data": "false"}), TranscriptEventListener
 
 
-def run_wake(model_dir: Path, source: InputStream, emit: Emitter, *, create: Callable = _create_transcriber, profile_path: Path | None = None) -> None:
+def run_wake(model_dir: Path, source: InputStream, emit: Emitter, *, create: Callable | None = None, profile_path: Path | None = None, architecture: str = "tiny") -> None:
     from .personal_wake import PROFILE_PATH, PersonalWakeProfile
 
     directory = existing_model_directory(model_dir)
     profile_path = profile_path if profile_path is not None else PROFILE_PATH
-    transcriber, listener_base = create(directory)
+    transcriber, listener_base = create(directory) if create is not None else _create_transcriber(directory, architecture=architecture)
     try:
         personal = PersonalWakeProfile.load(profile_path)
     except (ValueError, OSError):
@@ -175,11 +187,12 @@ def run_wake(model_dir: Path, source: InputStream, emit: Emitter, *, create: Cal
                 elif operation == "pause":
                     worker.pause()
                 elif operation == "resume":
-                    for key in ("allowBare", "allowPersonal"):
+                    for key in ("allowBare", "allowPersonal", "diagnostics"):
                         if key in request and type(request[key]) is not bool:
                             raise ProtocolError("Invalid wake setting.")
                     worker.allow_bare = request.get("allowBare", False)
                     worker.allow_personal = request.get("allowPersonal", False)
+                    worker.diagnostics = request.get("diagnostics", False)
                     worker.resume()
                 elif operation == "enroll":
                     paths = request.get("paths")

@@ -3,14 +3,14 @@
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
 „Hey Friday“ (weitere Wake-Varianten optional), deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
-optional mit Gemini-TTS auf Deutsch vorgelesen werden. Friday startet als Menüleisten-App
+optional mit der lokalen deutschen Piper-Stimme vorgelesen werden. Gemini-TTS ist zusätzlich auswählbar. Friday startet als Menüleisten-App
 mit transparentem Overlay, ohne Dock-Icon oder automatisch geöffnetes Fenster.
 
 ## Starten
 
 Apple Silicon, macOS 15+, Swift 6, Python 3.12 über [uv](https://docs.astral.sh/uv/).
 Das einmalige Setup lädt die offenen Modellgewichte und das offizielle Hex-Binary.
-Danach arbeiten Wake, Hex und Laya lokal ohne API-Key.
+Danach arbeiten Wake, Hex, Laya und Piper lokal ohne API-Key.
 
 ```bash
 ./scripts/setup-local-runtime.sh
@@ -39,8 +39,8 @@ Autorisierung des Schlüssels bei Google wird erst beim API-Aufruf geprüft.
 `runtime.json` enthält nur Provider/Modell. API-Keys werden nicht in Git gespeichert.
 Für eine stabile App-Identität kann `FRIDAY_SIGNING_IDENTITY` beim Bauen gesetzt oder
 deren Name/Hash in `~/Library/Application Support/Friday/signing-identity` gespeichert
-werden. Reasoning und neuronale Sprachausgabe senden Anfrage- bzw. Antworttext an
-Google; Hex, Wake und Laya bleiben lokal. Recherche sendet Suchbegriffe an DuckDuckGo
+werden. Gemini-Reasoning und die optional ausgewählte Gemini-Stimme senden Anfrage- bzw. Antworttext an
+Google; Hex, Wake, Laya und die Standardstimme Piper bleiben lokal. Recherche sendet Suchbegriffe an DuckDuckGo
 oder den ausdrücklich genannten Wetter-Ort an Open-Meteo.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
@@ -48,6 +48,9 @@ Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antwo
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
 2. „Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
+   Das Setup verwendet jetzt Moonshine Small Streaming Deutsch mit „Hey Friday“ als Schlüsselphrase.
+   Unter „Mikrofon und Wake-Erkennung prüfen“ sind Pegel und der zuletzt erkannte
+   Text sichtbar, solange das Einstellungsfenster aktiv ist; diese Diagnose wird nicht gespeichert.
    Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
    anklicken und dreimal nur die Phrase einsprechen, jeweils kurz still sein.
    Nach jeder Probe den Button für die nächste Aufnahme verwenden. Das persönliche
@@ -71,11 +74,15 @@ Gemini zeigt die verschachtelnde solving-Animation. Nach Hex erscheint der erkan
 am Overlay; nach erfolgreicher Computeraktion verschwindet er nach einer Sekunde,
 bei Fragen nach acht Sekunden. Beim nächsten Befehl wird
 er entfernt. Das ist kein Wort-für-Wort-Live-Transkript.
-Gemini-Antworten werden standardmäßig mit Gemini 3.8 Flash-Lite TTS vorgelesen;
-Kore, Aoede und Charon sind auswählbar. Der vorhandene lokale Gemini-Schlüssel genügt.
-Bei Sprachfehlern bleibt die Textantwort erhalten. Ollama nutzt weiterhin die lokale
-macOS-Stimme. Der Schalter kann die Sprachausgabe
-ausschalten. Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard.
+LLM-Antworten werden standardmäßig mit Piper „Thorsten High“ auf Deutsch vorgelesen,
+vollständig lokal und ohne API-Kosten. Die Stimme wird beim Setup vorbereitet,
+beim ersten Vorlesen geladen und verwendet anschließend keine Netzwerkverbindung.
+Alternativ sind Gemini 3.8 Flash-Lite TTS mit Kore, Aoede und Charon auswählbar.
+Bei einem Cloud-Sprachfehler übernimmt Piper; bis zur erneuten Auswahl bzw. zum
+Speichern eines Schlüssels wird die Cloud-Stimme in dieser Sitzung nicht erneut angefragt.
+Die Anzeige unter dem Sprachschalter nennt die verwendete Stimme oder einen Fehler;
+die Textantwort bleibt erhalten. Der Schalter kann die Sprachausgabe ausschalten.
+Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard für Textantworten.
 Bei Überlastung übernimmt Gemini 3.8 Flash mit niedrigem Thinking. Das
 überlastete Modell wird danach zwei Minuten lang nicht erneut angefragt.
 „Noch einmal vorlesen“ wiederholt die letzte LLM-Antwort, ohne eine neue Gemini-
@@ -128,12 +135,12 @@ App-Starts und Notizen bleiben stumm.
 
 | Funktion | Erste Version |
 | --- | --- |
-| Wake | Moonshine Tiny Streaming für Hey Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
+| Wake | Moonshine Small Streaming Deutsch (123M) für Hey Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
-| Text → Sprache | Gemini 3.8 Flash-Lite TTS für Gemini; macOS-Systemstimme bei Ollama |
+| Text → Sprache | Piper Thorsten High lokal; Gemini 3.8 Flash-Lite TTS optional mit lokalem Fallback |
 | Recherche | DuckDuckGo-Snippets, Open-Meteo-Prognose, Quellen separat zur Antwort |
 | Oberfläche | Menüleisten-Kugel und transparentes Thinking-Orb-Overlay; native MIT-Animationen |
 
@@ -150,29 +157,32 @@ PYTHONPATH="$PWD/services/local-runtime/src" uv run --project services/local-run
 
 `apps/macos/Sources/FridayApp` enthält Oberfläche und Sprachkoordination;
 `FridayCore` das Routing; `FridayAdapters` Audio, IPC, Hex, Laya, Tools und Ollama.
-Die beiden lokalen Python-Worker liegen unter `services/local-runtime` und werden
+Die lokalen Python-Worker für Laya, Wake und Piper liegen unter `services/local-runtime` und werden
 mit der `.app` gebündelt. Modelle und Python-Umgebung bleiben außerhalb des Repos.
 
 Geprüft: Swift-/Python-Tests, echte lokale Laya-Inferenz, synthetische Wake-Aufnahme, Audio-Callback auf Hintergrundthread,
 deutsches WAV → Hex → Laya und tatsächliches Speichern einer Notiz sowie App-Build/Signatur.
 Mikrofon, individuelle Aussprache und sichtbarer App-Start benötigen einen Live-Test auf dem Mac.
-Die Moonshine-Standarderkennung hat Schwierigkeiten mit der deutschen Anna-Stimme.
-Mit drei persönlichen Anna-Sprachproben erkennt der neue Klangmuster-Prototyp
-auch „Hey Friday“ direkt vor einem Befehl; getestete andere Sätze lösen nicht aus.
-Bei fehlender Aktivierung neu anlernen oder „Sprechen“ verwenden.
+Das deutsche Small-Modell erkannte synthetisches „Hey Friday“ auch bei stark
+reduzierter Lautstärke; das ist keine Abnahme der individuellen Mikrofonerkennung.
+Die Sprachabschluss-Erkennung berücksichtigt jetzt den lokalen Ruhepegel, damit
+leise Befehle nicht vorzeitig enden. „Hey Friday“ ohne Auftrag öffnet eine kurze
+weitere Aufnahme. Bei fehlender Aktivierung die Mikrofon-Diagnose oder „Sprechen“ verwenden.
 Ohne konfigurierte Apple-Signatur wird ad-hoc signiert. Die Entwicklungs-App ist
 kein notarisiertes Release. Bereits laufende Apps werden direkt aktiviert; der
 Kaltstart einer App hängt von deren eigener Startzeit ab.
 
 [Architektur](docs/architecture.md) · [Integrationen](docs/integrations.md) ·
-[Roadmap](docs/roadmap.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+[Roadmap](docs/roadmap.md) · [Build-9-Prüfung](docs/verification-2026-10-05-v9.md) ·
+[Handy und Brille: nächster Schritt](docs/mobile-access.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Lizenz
 
 Friday-Code, Maskottchen und lokale Worker stehen unter MIT; Laya-Code und die
-verwendeten Laya-Gewichte unter Apache-2.0, Moonshine Tiny und Hex/Whisper unter MIT.
+verwendeten Laya-Gewichte unter Apache-2.0, Moonshine Small Deutsch und Hex/Whisper unter MIT.
 Die [Thinking Orbs](https://github.com/Jakubantalik/Libraries.dev) sind mit MIT-Hinweis gebündelt.
-macOS-Sprachausgabe ist ein Betriebssystemdienst, keine offene Modellkomponente.
+Piper verwendet die offene [Thorsten-High-Stimme](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/high/MODEL_CARD)
+mit CC0-Sprachdaten; die Engine wird über Moonshine Voice bereitgestellt.
 Jedes gewählte Ollama-Modell hat seine eigene Lizenz. `main.py` und `ai.py` bleiben
 als ursprünglicher D&D-Starter erhalten; dafür enthielt das Ausgangsrepo keine Lizenz.
 
@@ -189,16 +199,20 @@ werden zur Serveradresse normalisiert. Konfiguration und Token liegen nur unter
 außerhalb von Git/App-Bundle. HTTP-Weiterleitungen erhalten keinen Token.
 
 Friday erkennt Namen und IDs vorhandener Lichter, Steckdosen, Szenen und Heizungen.
-Beispiele: „Schalte Wohnzimmer Licht an“, „Dimme Wohnzimmer Licht auf 30 Prozent“,
+Beispiele: „Wohnzimmer an“, „Licht im Wohnzimmer aus“, „Schalte Wohnzimmer Licht an“, „Dimme Wohnzimmer Licht auf 30 Prozent“,
 „Aktiviere Szene Abend“, „Stelle Wohnzimmer Heizung auf 21 Grad“. Mehrdeutige Namen
 führen zu einem Hinweis; die eindeutigen IDs stehen im Einstellungsbereich. Helligkeit
 und Temperatur werden gegen Gerätefähigkeiten geprüft (Temperatur in Celsius,
 vorhandene Zieltemperatur-Funktion und passende Bereich/Schrittweite). Zeitpläne,
 Bedingungen und freie HA-Dienste sind nicht implementiert. Nach HTTP-Timeout wird
-kein Steuerungsauftrag automatisch wiederholt. Erfolgsanzeige bestätigt die
-Annahme durch Home Assistant, nicht den physisch beobachteten Gerätezustand.
-Die Verbindung zum tatsächlichen Server wurde ohne Token geprüft (401); echte
-Gerätesteuerung bitte nach Eintragen des Tokens testen.
+kein Steuerungsauftrag automatisch wiederholt. Eindeutig benannte Lichtgruppen
+haben bei Raumbefehlen Vorrang vor einzelnen Lampen; Räume und IDs werden aus dem
+Gerätekatalog ermittelt. Laya klassifiziert auch die kurzen Befehle lokal.
+Nach genau einem Steuerungsauftrag liest Friday den Zustand erneut aus Home Assistant.
+Bei Lichtgruppen müssen auch die gelisteten Mitglieder den Zielzustand melden.
+Die Erfolgsanzeige bestätigt diesen gemeldeten Zustand. Bleibt die Bestätigung
+aus, erscheint ein Fehler ohne erneuten Steuerungsauftrag. Der reale Wohnzimmer-
+Test schaltete Gruppe und beide Lampen ein; der Nutzer bestätigte das Licht.
 
 Zusätzliche Mac-Befehle: „Öffne Downloads“, „Öffne Dokumente“, „Öffne Schreibtisch“,
 „Öffne https://example.com“. Webseiten müssen ausdrücklich als HTTP(S)-Adresse

@@ -34,7 +34,7 @@ public actor MoonshineWakeWordDetector {
         _ = try await worker.request(JSONEncoder().encode(Control(id: id)), id: id)
     }
     public func resume() async throws -> Int {
-        struct Control: Encodable { let id: String; let op = "resume"; let allowBare: Bool; let allowPersonal: Bool }
+        struct Control: Encodable { let id: String; let op = "resume"; let allowBare: Bool; let allowPersonal: Bool; let diagnostics = true }
         struct Reply: Decodable { let generation: Int }
         let id = UUID().uuidString
         let data = try await worker.request(JSONEncoder().encode(Control(id: id,

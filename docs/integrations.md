@@ -25,10 +25,18 @@ Das ist eine Testfunktion, keine Sprecheridentifikation. Das persönliche Profil
 ist nur nach ausdrücklichem Opt-in aktiv. Standardmäßig löst ausschließlich „Hey Friday“ am Anfang einer Äußerung aus; „Friday“ allein ist separat optional.
 „Zurücksetzen“ entfernt nur das persönliche Profil.
 
-Moonshine Tiny Streaming verarbeitet kontinuierlich lokale AudioInput-Samples
+Moonshine Small Streaming Deutsch (123M) verarbeitet kontinuierlich lokale AudioInput-Samples
 und meldet standardmäßig nur die vollständige Phrase „Hey Friday“ am Beginn
-einer Äußerung. „Friday“ allein erfordert das separate Opt-in. Die englischen offenen Tiny-Gewichte
-werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der nativen App.
+einer Äußerung. „Friday“ allein erfordert das separate Opt-in. Die deutschen offenen
+Small-Gewichte werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der
+nativen App. Die Schlüsselphrase wird dem Modell mitgegeben. Feste ASR-Schreibvarianten
+wie „Hey Freidei“ werden ebenfalls erkannt; „hey“ als erstes Wort bleibt erforderlich.
+Das Setup verwendet `SMALL_STREAMING` und Revision `quantized_26_08_24`.
+Die alte Tiny-Konfiguration bleibt über `wakeArchitecture` kompatibel.
+Ruhepegel-basierte Sprachgrenzen verhindern den vorzeitigen Abschluss leiser Befehle.
+Eine Wake-Phrase ohne Befehl öffnet eine Aufnahme mit acht Sekunden Sprachbeginn-Timeout.
+Die Mikrofon-Diagnose zeigt einen begrenzten Text im aktiven Einstellungsfenster;
+sie aktiviert keinen Befehl und speichert weder Audio noch Transkripte auf Disk.
 Abnahme: „Hey Friday“ aktiviert den Assistenten; „Friday“ allein, Stille und
 Erwähnungen mitten in einem Satz lösen in der Standardeinstellung nicht aus;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
@@ -78,13 +86,23 @@ Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt Ap
 
 ## Sprachausgabe
 
-`GeminiSpeechOutput` verwendet Gemini 3.8 Flash-Lite TTS über die Interactions-API
+`LocalPiperSpeechOutput` ist die Standardausgabe für Gemini und Ollama.
+Der lokale `tts`-Worker verwendet `piper_de_DE-thorsten-high`; `prepare-tts` lädt
+die Stimme ausdrücklich beim Setup. Der laufende Worker lädt nur vorhandene
+Dateien. Texte werden in höchstens 300 Zeichen lange Abschnitte aufgeteilt;
+JSON-Zeilen liefern begrenzte PCM16-WAV-Daten im Arbeitsspeicher an AVAudioPlayer.
+Es werden keine Audiodateien angelegt. `AdaptiveSpeechOutput` kann optional die
+Cloud-Stimme bevorzugen. Nach einem Cloud-Fehler übernimmt Piper, weitere
+Cloud-TTS-Anfragen bleiben für die Sitzung bis zum manuellen Zurücksetzen gesperrt.
+Eine eigene Anzeige hält Sprachfehler auch beim Übergang zurück zur Wake-Bereitschaft sichtbar.
+
+`GeminiSpeechOutput` verwendet optional Gemini 3.8 Flash-Lite TTS über die Interactions-API
 und den vorhandenen privaten Gemini-Schlüssel. Deutsche Sprechweise wird separat
 als Style-Metadaten vorgegeben; der Antworttext bleibt ein wörtliches Transkript.
 Kore, Aoede und Charon sind auswählbar. WAV-Audio spielt AVAudioPlayer ab; Abbruch
 stoppt Download und Wiedergabe. Generation- und Player-IDs verhindern verspäteten
 Start bzw. Abschluss. Bei TTS-Fehlern bleibt die erhaltene Textantwort verfügbar.
-`SystemSpeechOutput` bleibt bei Ollama die lokale Alternative. Die Ausgabe ist
+`SystemSpeechOutput` bleibt als Adapter verfügbar. Die Live-Ausgabe ist
 standardmäßig aktiv und abschaltbar, für finale LLM-Antworten und LLM-Fehler; Computeraktionen und
 Diktat bleiben stumm. `speak` wartet auf Wiedergabeende; Stop/Abbruch beendet
 die wartende Anfrage mit `CancellationError`.
@@ -92,7 +110,7 @@ die wartende Anfrage mit `CancellationError`.
 Modellaufruf. Replay bleibt während anderer Arbeit gesperrt; ein Generation-Token
 verhindert, dass alte Wiedergabe-Abschlüsse neue Befehle oder Wake beeinflussen.
 ElevenLabs ist weiterhin eine mögliche Alternative, aktuell nicht aktiviert.
-Alternativ kann eine lokale TTS-Engine denselben Vertrag implementieren.
+Andere TTS-Engines können denselben Vertrag implementieren.
 Schlüssel anderer optionaler Anbieter werden ebenfalls außerhalb des Repositories gespeichert.
 
 ## Thinking Orbs

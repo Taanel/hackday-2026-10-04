@@ -7,7 +7,9 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var requests: [URLRequest] = []
     nonisolated(unsafe) private static var status = 200
-    static func reset(status: Int = 200) { lock.lock(); defer { lock.unlock() }; requests = []; self.status = status }
+    nonisolated(unsafe) private static var changed: [String: [String: Any]] = [:]
+    nonisolated(unsafe) private static var applyChanges = true
+    static func reset(status: Int = 200, applyChanges: Bool = true) { lock.lock(); defer { lock.unlock() }; requests = []; changed = [:]; self.status = status; self.applyChanges = applyChanges }
     static var posts: [URLRequest] { lock.lock(); defer { lock.unlock() }; return requests.filter { $0.httpMethod == "POST" } }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -19,14 +21,36 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
             while true { let count = stream.read(&buffer,maxLength:buffer.count); if count <= 0 { break }; data.append(contentsOf:buffer.prefix(count)) }
             recorded.httpBody = data
         }
-        Self.lock.lock(); Self.requests.append(recorded); let status = Self.status; Self.lock.unlock()
+        Self.lock.lock()
+        Self.requests.append(recorded); let status = Self.status
+        if recorded.httpMethod == "POST", Self.applyChanges,
+           let data = recorded.httpBody, let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let id = payload["entity_id"] as? String {
+            Self.changed[id] = ["state": request.url!.path.hasSuffix("turn_off") ? "off" : id.hasPrefix("scene.") ? "2026-10-05T12:00:00Z" : "on",
+                                "brightness": (payload["brightness_pct"] as? Double).map { ($0 * 255 / 100).rounded() } ?? 255,
+                                "temperature": payload["temperature"] ?? 21.5]
+        }
+        let changed = Self.changed
+        Self.lock.unlock()
         let body: String
         if request.url!.path == "/api/states" {
             body = #"[{"entity_id":"light.wohnzimmer","state":"off","attributes":{"friendly_name":"Wohnzimmer Licht","supported_color_modes":["brightness"]}},{"entity_id":"switch.kaffeemaschine","state":"off","attributes":{"friendly_name":"Kaffeemaschine"}},{"entity_id":"scene.abend","state":"unknown","attributes":{"friendly_name":"Abend"}},{"entity_id":"climate.wohnzimmer","state":"heat","attributes":{"friendly_name":"Wohnzimmer Heizung","supported_features":1,"min_temp":7,"max_temp":30,"target_temp_step":0.5}}]"#
         } else if request.url!.path == "/api/config" { body = #"{"unit_system":{"temperature":"°C"}}"# }
         else { body = "[]" }
+        var responseData = Data(body.utf8)
+        if request.url!.path == "/api/states", var states = try? JSONSerialization.jsonObject(with: responseData) as? [[String: Any]] {
+            for index in states.indices {
+                if let id = states[index]["entity_id"] as? String, let observed = changed[id] {
+                    states[index]["state"] = observed["state"]
+                    var attributes = states[index]["attributes"] as! [String: Any]
+                    attributes["brightness"] = observed["brightness"]; attributes["temperature"] = observed["temperature"]
+                    states[index]["attributes"] = attributes
+                }
+            }
+            responseData = try! JSONSerialization.data(withJSONObject: states)
+        }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(body.utf8)); client?.urlProtocolDidFinishLoading(self)
+        client?.urlProtocol(self, didLoad: responseData); client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
 }
@@ -61,7 +85,7 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
                         .init(target:"Kaffeemaschine", operation:.turnOff),
                         .init(target:"Abend", operation:.activateScene),
                         .init(target:"Wohnzimmer Heizung", operation:.temperature, value:21.5)] {
-            #expect(try await client.execute(command).contains("angenommen"))
+            #expect(try await client.execute(command).contains("bestätigt"))
         }
         #expect(HomeProtocol.posts.map { $0.url!.path } == ["/api/services/light/turn_on", "/api/services/light/turn_on", "/api/services/switch/turn_off", "/api/services/scene/turn_on", "/api/services/climate/set_temperature"])
         #expect(HomeProtocol.posts.allSatisfy { $0.value(forHTTPHeaderField:"Authorization") == "Bearer private-test-token" && $0.url!.query == nil })
@@ -71,6 +95,20 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
         await #expect(throws: AdapterError.self) { try await client.execute(.init(target:"Wohnzimmer Heizung", operation:.temperature, value:21.3)) }
         await #expect(throws: AdapterError.self) { try await client.execute(.init(target:"missing", operation:.turnOn)) }
         #expect(HomeProtocol.posts.count == 5)
+    }
+    @Test func acceptedServiceWithoutStateChangeIsNotReportedAsSuccessOrRetried() async throws {
+        HomeProtocol.reset(applyChanges: false)
+        let (directory, client, session) = try context()
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        await #expect(throws: AdapterError.self) { try await client.execute(.init(target: "Wohnzimmer Licht", operation: .turnOn)) }
+        #expect(HomeProtocol.posts.count == 1)
+    }
+    @Test func roomLightNamesSelectTheNamedGroupInsteadOfItsIndividualBulbs() throws {
+        let entities = try JSONDecoder().decode([HomeAssistantEntity].self, from: Data(#"[{"entity_id":"light.wohnzimmer_black_hole","state":"off","attributes":{"friendly_name":"Black Hole"}},{"entity_id":"light.wohnzimmer_stripes","state":"off","attributes":{"friendly_name":"Stripes"}},{"entity_id":"light.wohnzimmer_wohnzimmer","state":"off","attributes":{"friendly_name":"Wohnzimmer","entity_id":["light.wohnzimmer_black_hole","light.wohnzimmer_stripes"]}}]"#.utf8))
+        for name in ["Wohnzimmer", "Licht im Wohnzimmer", "Wohnzimmer Licht", "im Wohnzimmer das Licht", "alle Lampen im Wohnzimmer"] {
+            #expect(try HomeAssistantClient.resolve(.init(target: name, operation: .turnOn), in: entities).id == "light.wohnzimmer_wohnzimmer")
+        }
+        #expect(try HomeAssistantClient.resolve(.init(target: "Black Hole", operation: .turnOn), in: entities).id == "light.wohnzimmer_black_hole")
     }
     @Test func failedDiscoveryDoesNotActAndServiceNamesCannotBeInjected() async throws {
         HomeProtocol.reset(status:401)
@@ -85,6 +123,16 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
         #expect(throws: AdapterError.self) { try HomeAssistantClient.resolve(.init(target:"Licht", operation:.turnOn), in:entities) }
     }
 }
+
+@Test(arguments: ["Wohnzimmer an", "Wohnzimmer aus", "Licht im Wohnzimmer an", "Mach das Licht im Wohnzimmer an", "Schalte alle Lampen im Wohnzimmer aus", "Wohnzimmer Licht einschalten", "Bitte Wohnzimmer einschalten", "Schalte das Licht im Wohnzimmer ein"])
+func shortRoomCommandsAreLocalHomeActions(text: String) {
+    let action = HomeAssistantCommandParser.parse(text)
+    #expect(action != nil)
+    #expect(action?.operation == (text.contains("aus") ? .turnOff : .turnOn))
+}
+
+@Test(arguments: ["Warum ist das Licht an?", "Ist das Wohnzimmer an?", "Erkläre Licht an", "Ich mache morgen Wohnzimmer an", "Wohnzimmer an und Küche aus"])
+func questionsAreNotShortHomeCommands(text: String) { #expect(HomeAssistantCommandParser.parse(text) == nil) }
 
 @Test(arguments:["Erkläre, wie ich das Licht einschalte", "Schalte das Licht an und öffne Safari", "Schalte morgen das Licht an", "Wenn ich komme schalte Licht an", "Schalte das Licht an, falls es dunkel ist"])
 func extendedLocalActionsDoNotInventHomeActions(text:String) { #expect(HomeAssistantCommandParser.parse(text) == nil) }

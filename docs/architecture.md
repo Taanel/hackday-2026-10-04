@@ -16,7 +16,7 @@ flowchart TD
     LLM --> Reply[Antworttext]
     LLM -->|search_web / weather_forecast| Research[DuckDuckGo-Snippets / Open-Meteo]
     Research -->|Daten ohne Computerfunktionen| LLM
-    Reply --> TTS[Gemini-TTS / lokal bei Ollama]
+    Reply --> TTS[Piper lokal / Gemini-Stimme optional]
 ```
 
 AudioInput ist der einzige Mikrofonbesitzer. Es konvertiert auf 16-kHz-Mono,
@@ -49,7 +49,7 @@ Friday-Ordner gespeichert. Schreibtischwechsel senden Control + Pfeiltaste mit
 Bedienungshilfen-Zugriff. Freie Terminalbefehle, allgemeine Klick-Steuerung und
 Cursor-Diktat sind noch offen. Gemini kann höchstens drei typisierte Aktionen an
 den Router zurückgeben; dieser validiert alle vor der ersten Ausführung und nutzt
-die gleichen lokalen Tools. Gemini-TTS liest Gemini-Antworten standardmäßig vor und
+die gleichen lokalen Tools. Piper liest LLM-Antworten standardmäßig lokal vor und
 wartet auf Wiedergabeende; einfache Aktionen bleiben stumm.
 
 Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
@@ -118,3 +118,18 @@ Projektsuche; Tab-Inhalte verlassen den Helper nicht. `VoiceController` besitzt
 zusätzlich eine abbrechbare Follow-up-Aufnahme mit Sprachbeginn-Timeout. Bare-
 und Acoustic-only-Wake sind standardmäßig aus. Fensteraktivität pausiert Orbs;
 der vendorte TimelineView-Clock ist auf 24 fps begrenzt.
+
+Build 9 erweitert `home_control` um kurze Befehle wie „Wohnzimmer an“. Die lokale
+Argumentprüfung normalisiert sie vor der echten Laya-Klassifikation. Der HA-Actor
+bevorzugt eine eindeutig passende Lichtgruppe und bestätigt nach einem einzigen
+Service-Aufruf Ziel- und Mitgliedszustände durch begrenztes Readback; fehlende
+Bestätigung löst keine erneute Aktion aus. Die aktuelle Raumauflösung verwendet
+Namen und Gruppen aus dem Gerätekatalog, noch keine HA-Area-Registry.
+
+Das Standard-Wake-Modell ist jetzt German Small Streaming mit Keyword-Bias.
+Wake-Diagnosen bleiben flüchtig und zeigen im aktiven Fenster Audiopegel und
+den letzten begrenzten ASR-Text. Die native Befehlsaufnahme berechnet ihre
+Sprachschwelle aus dem zuvor gehörten Ruhepegel. Die Standardstimme ist lokales
+Piper Thorsten High mit begrenzten WAV-Antworten über den eigenen JSON-Worker;
+optionales Gemini-TTS fällt bei einem Fehler auf Piper zurück. Beide warten auf
+Wiedergabeende, bevor Wake bzw. die berechtigte Follow-up-Aufnahme fortgesetzt wird.

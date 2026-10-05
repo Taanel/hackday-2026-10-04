@@ -33,6 +33,16 @@ import FridayAdapters
             UserDefaults.standard.set(ttsVoice, forKey: "Friday.ttsVoice")
         }
     }
+    @Published var ttsProvider = UserDefaults.standard.string(forKey: "Friday.ttsProvider") ?? "local" {
+        didSet {
+            adaptiveSpeech?.preferLocal = ttsProvider != "gemini"
+            adaptiveSpeech?.resetCloudAvailability()
+            UserDefaults.standard.set(ttsProvider, forKey: "Friday.ttsProvider")
+        }
+    }
+    @Published private(set) var speechNotice = ""
+    @Published private(set) var lastWakeTranscript = ""
+    @Published private(set) var microphoneLevel = 0.0
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
     @Published private(set) var phase: AssistantPhase = .idle
@@ -47,6 +57,8 @@ import FridayAdapters
     private let router: AssistantRouter
     private let speech: any SpeechOutput
     private var cloudSpeech: GeminiSpeechOutput?
+    private var adaptiveSpeech: AdaptiveSpeechOutput?
+    private var ttsWorker: JSONLineProcess?
     private var projectLocator: MacProjectLocator?
     var usesCloudSpeech: Bool { cloudSpeech != nil }
     private let keyStore: LocalGeminiKeyStore
@@ -91,6 +103,7 @@ import FridayAdapters
             try keyStore.save(geminiKeyInput)
             await gemini?.invalidateCredentials()
             await cloudSpeech?.invalidateCredentials()
+            adaptiveSpeech?.resetCloudAvailability()
             geminiKeyInput = ""
             geminiKeyConfigured = true
             geminiKeyStatus = "Lokal gespeichert · kein Schlüsselbundzugriff."
@@ -166,23 +179,34 @@ import FridayAdapters
                 reasoningLabel = "Ollama · lokal"
             }
             let cloudSpeech = configuration.reasoningProvider == "gemini" ? GeminiSpeechOutput() : nil
+            let ttsWorker = configuration.worker("tts")
+            let localSpeech = LocalPiperSpeechOutput(worker: ttsWorker)
+            let adaptiveSpeech = AdaptiveSpeechOutput(local: localSpeech, cloud: cloudSpeech)
             let projectLocator = MacProjectLocator()
             let homeAssistant = HomeAssistantClient()
-            let speech: any SpeechOutput
-            if let cloudSpeech { speech = cloudSpeech } else { speech = SystemSpeechOutput() }
             let model = AssistantViewModel(router: AssistantRouter(
                 decisions: CachedDecisionEngine(engine: LayaDecisionEngine(worker: laya, parser: parser), epoch: { await laya.sessionID }),
                 reasoning: reasoning,
                 tools: MacToolExecutor(projectLocator: projectLocator, homeAssistant: homeAssistant), minimumConfidence: 0.75
-            ), speech: speech, homeAssistant: homeAssistant)
+            ), speech: adaptiveSpeech, homeAssistant: homeAssistant)
             model.isLive = true; model.isReady = false
             model.gemini = gemini
             model.cloudSpeech = cloudSpeech
+            model.adaptiveSpeech = adaptiveSpeech; model.ttsWorker = ttsWorker
+            adaptiveSpeech.preferLocal = model.ttsProvider != "gemini"
+            adaptiveSpeech.onNotice = { [weak model] notice in model?.speechNotice = notice }
+            model.speechNotice = adaptiveSpeech.preferLocal ? "Piper · Thorsten High · lokal und kostenlos" : "Gemini-TTS · kostenloses Kontingent begrenzt"
             model.projectLocator = projectLocator
             cloudSpeech?.voiceName = model.ttsVoice
             model.reasoningLabel = reasoningLabel
             model.hex = hex; model.layaWorker = laya
             let voice = VoiceController(wake: wake)
+            voice.onWakeTranscript = { [weak model] text in
+                if OrbWindowActivity.shared.active { model?.lastWakeTranscript = text }
+            }
+            voice.onAudioLevel = { [weak model] level in
+                if OrbWindowActivity.shared.active { model?.microphoneLevel = level }
+            }
             model.voice = voice
             voice.onPhase = { [weak model] phase in
                 guard let model else { return }
@@ -349,6 +373,14 @@ import FridayAdapters
                     try Task.checkCancellation()
                     guard generation == token else { throw CancellationError() }
                     input = submittedInput
+                    // A wake phrase spoken on its own opens a command window;
+                    // it must not send an empty question to the router/LLM.
+                    if stripWake, wakeEnabled, submittedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let voice {
+                        try await voice.followUpRecording()
+                        status = "Ich höre · sag jetzt deinen Auftrag · 8 Sekunden"
+                        showTranscript("Sag jetzt deinen Auftrag")
+                        return
+                    }
                 }
                 showTranscript(submittedInput)
                 if Self.endsConversation(submittedInput) {
@@ -381,7 +413,7 @@ import FridayAdapters
                         offerFollowUp = conversationMode && wakeEnabled && submittedMode == .assistant && Self.isFollowUpQuestion(result.text)
                     }
                     catch is CancellationError { throw CancellationError() }
-                    catch { status = "Antwort erhalten · Sprachausgabe: \(error.localizedDescription)" }
+                    catch { speechNotice = error.localizedDescription; status = "Antwort erhalten · Sprachausgabe: \(error.localizedDescription)" }
                 }
                 try Task.checkCancellation()
                 phase = .idle
@@ -525,14 +557,14 @@ import FridayAdapters
         clearTrainingFiles()
         generation = UUID()
         startupTask?.cancel(); microphoneTask?.cancel(); task?.cancel(); speech.stop()
-        await voice?.shutdown(); await hex?.stop(); await layaWorker?.stop()
+        await voice?.shutdown(); await hex?.stop(); await layaWorker?.stop(); await ttsWorker?.stop()
         await startupTask?.value; await microphoneTask?.value; await task?.value
-        await voice?.shutdown(); await hex?.stop(); await layaWorker?.stop()
+        await voice?.shutdown(); await hex?.stop(); await layaWorker?.stop(); await ttsWorker?.stop()
     }
 
     static func removeWakePrefix(_ text: String) -> String {
         // Called only after confirmed audio wake detection. German Whisper may spell Friday as Friede.
-        text.replacingOccurrences(of: #"^\s*(?:(?:hey|hi|hei|he|hej)\s*[,!]?\s*)?(?:friday|friede|freitag|fridey|freidei)\b\s*[,.:;!?-]*\s*"#,
+        text.replacingOccurrences(of: #"^\s*(?:(?:hey|hi|hei|he|hej)\s*[,!]?\s*)?(?:friday|frida|freda|friede|freitag|fridey|freidei)\b\s*[,.:;!?-]*\s*"#,
                                   with: "", options: [.regularExpression, .caseInsensitive])
     }
 }

@@ -2,6 +2,13 @@ import Foundation
 import Testing
 import FridayCore
 import FridayAdapters
+
+@Test @MainActor func confirmedGermanWakeSpellingsLeaveOnlyTheCommand() {
+    #expect(AssistantViewModel.removeWakePrefix("Hey Frida, Wohnzimmer an") == "Wohnzimmer an")
+    #expect(AssistantViewModel.removeWakePrefix("Hey Freda!") == "")
+    #expect(AssistantViewModel.removeWakePrefix("Hey Friday") == "")
+    #expect(AssistantViewModel.removeWakePrefix("Erkläre mir Friday") == "Erkläre mir Friday")
+}
 @testable import FridayApp
 
 private struct Decision: FastDecisionEngine {

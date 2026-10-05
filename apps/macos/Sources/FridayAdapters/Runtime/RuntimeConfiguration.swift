@@ -10,6 +10,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public var ollamaModel: String
     public var reasoningProvider: String?
     public var geminiModel: String?
+    public var ttsModelDirectory: String?
+    public var wakeArchitecture: String?
 
     public static var supportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -37,9 +39,11 @@ public struct RuntimeConfiguration: Codable, Sendable {
     }
 
     public func worker(_ mode: String) -> JSONLineProcess {
-        JSONLineProcess(
+        var arguments = ["-B", "-u", "-m", "friday_runtime", mode, "--model-dir", mode == "laya" ? layaModelDirectory : mode == "tts" ? (ttsModelDirectory ?? Self.supportDirectory.appendingPathComponent("models/tts").path) : wakeModelDirectory]
+        if mode == "wake", wakeArchitecture == "SMALL_STREAMING" { arguments += ["--model-arch", "small"] }
+        return JSONLineProcess(
             executable: pythonExecutable,
-            arguments: ["-B", "-u", "-m", "friday_runtime", mode, "--model-dir", mode == "laya" ? layaModelDirectory : wakeModelDirectory],
+            arguments: arguments,
             directory: workerDirectory,
             environment: ["HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false", "PYTHONUNBUFFERED": "1"]
         )

@@ -80,6 +80,14 @@ struct AssistantView: View {
                 }
                 Text(model.wakeEnabled ? "Mikrofon aktiv · Erkennung läuft lokal." : "Mikrofon startet beim Aktivieren oder über „Sprechen“.")
                     .font(.caption).foregroundStyle(.secondary)
+                if model.wakeEnabled {
+                    DisclosureGroup("Mikrofon und Wake-Erkennung prüfen") {
+                        ProgressView(value: min(1, model.microphoneLevel * 8))
+                        Text("Sprich normal laut. Der Balken zeigt, ob das Mikrofon dich hört.").font(.caption).foregroundStyle(.secondary)
+                        Text(model.lastWakeTranscript.isEmpty ? "Noch keine Sprache erkannt." : "Zuletzt gehört: \(model.lastWakeTranscript)").font(.caption).textSelection(.enabled)
+                        Text("Diese Anzeige bleibt lokal und wird nicht gespeichert.").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Schneller Sprechabschluss · 500 ms Pause", isOn: $model.fastEndpoint)
                     .toggleStyle(.checkbox).disabled(model.isWorking)
                 Text("Für kurze Befehle. Ausschalten, wenn du längere Denkpausen beim Sprechen brauchst.")
@@ -134,12 +142,18 @@ struct AssistantView: View {
                 Text("Computeraktionen und Diktat bleiben stumm.")
                     .font(.caption).foregroundStyle(.secondary)
                 if model.usesCloudSpeech {
+                    Picker("Sprachausgabe", selection: $model.ttsProvider) {
+                        Text("Piper · Deutsch · lokal und kostenlos").tag("local")
+                        Text("Gemini · Cloud-Kontingent").tag("gemini")
+                    }.disabled(model.isWorking)
+                    if model.ttsProvider == "gemini" {
                     Picker("Stimme", selection: $model.ttsVoice) {
                         Text("Kore · klar").tag("Kore")
                         Text("Aoede · entspannt").tag("Aoede")
                         Text("Charon · ruhig").tag("Charon")
                     }.disabled(model.isWorking)
-                    Text("Natürliche deutsche Stimme · Gemini-TTS · nutzt deinen lokal gespeicherten Schlüssel.")
+                    }
+                    Text(model.speechNotice)
                         .font(.caption).foregroundStyle(.secondary)
                 }
 

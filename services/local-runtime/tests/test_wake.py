@@ -54,14 +54,14 @@ def event(text="Hey Friday, öffne Safari.", *, start=0.125, line_id=7):
     return SimpleNamespace(line=SimpleNamespace(text=text, start_time=start, line_id=line_id))
 
 
-@pytest.mark.parametrize("text", ["Hey Friday", " HEY, FRIDAY! ", "Hey—Friday, öffne Safari", "\"hey friday\" please"])
+@pytest.mark.parametrize("text", ["Hey Friday", " HEY, FRIDAY! ", "Hey—Friday, öffne Safari", "\"hey friday\" please", "Hey Frida, Licht an", "Hey Freidei", "Hey Freitag"])
 def test_normalized_whole_wake_prefix_matches(text):
     from friday_runtime.wake import has_wake_prefix
 
     assert has_wake_prefix(text)
 
 
-@pytest.mark.parametrize("text", ["hey", "say hey friday", "hey fridaynight", "heyfriday", "hey friday2", "where is Friday?", "Fridaynight", "Friday2", "Friday", "Friday, open Blender", "FRIDAY!"])
+@pytest.mark.parametrize("text", ["hey", "say hey friday", "hey fridaynight", "heyfriday", "hey friday2", "where is Friday?", "Fridaynight", "Friday2", "Friday", "Friday, open Blender", "FRIDAY!", "Wir treffen uns am Freitag", "Frida", "Hey Freunde", "Hey freitagabend"])
 def test_substrings_and_mid_sentence_mentions_do_not_match(text):
     from friday_runtime.wake import has_wake_prefix
 
@@ -85,6 +85,33 @@ def test_friday_still_works_with_a_personal_hey_friday_profile():
     assert output == [{"type": "wake", "text": "Friday, open Blender", "startSample": 0,
                        "audioSamples": 4000, "generation": 1}]
     worker.close()
+
+
+def test_local_transcript_diagnostics_are_bounded_and_do_not_trigger_a_wake():
+    from friday_runtime.wake import WakeWorker
+    transcriber = Transcriber()
+    output = []
+    worker = WakeWorker(transcriber, output.append, listener_base=object)
+    worker.diagnostics = True
+    worker.resume()
+    transcriber.streams[-1].audio_event = event("Wir treffen uns am Freitag", start=0)
+    worker.add_audio([0.0] * 4000)
+    worker.add_audio([0.0] * 4000)
+    assert output == [{"type": "transcript", "text": "Wir treffen uns am Freitag", "generation": 1}]
+    assert not worker.fired
+    worker.close()
+
+
+def test_german_small_constructor_biases_only_the_wake_phrase(monkeypatch):
+    import sys
+    from friday_runtime.wake import _create_transcriber
+    calls = []
+    def create(**kwargs): calls.append(kwargs); return object()
+    monkeypatch.setitem(sys.modules, "moonshine_voice", SimpleNamespace(ModelArch=SimpleNamespace(SMALL_STREAMING=4,TINY_STREAMING=2),Transcriber=create,TranscriptEventListener=object))
+    _create_transcriber("/prepared/model", architecture="small")
+    assert calls[0]["model_arch"] == 4
+    assert calls[0]["options"]["keyterms"] == "Hey Friday"
+    assert calls[0]["options"]["return_audio_data"] == "false"
 
 
 def test_one_wake_per_generation_reports_sample_offsets():

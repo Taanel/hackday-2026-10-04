@@ -45,6 +45,7 @@ private final class Resampler: @unchecked Sendable {
     private var generation = UUID()
     private var ring: [Float] = []
     private var recording: [Float] = []
+    private var backgroundLevels: [Double] = []
     private var endpoint = CommandEndpoint()
     public var hasRecordedSpeech: Bool { endpoint.hasSpeech }
 
@@ -89,6 +90,13 @@ private final class Resampler: @unchecked Sendable {
         totalSamples += samples.count
         ring.append(contentsOf: samples)
         if ring.count > 128_000 { ring.removeFirst(ring.count - 128_000) }
+        if !isRecording {
+            let rms = sqrt(samples.reduce(0) { $0 + Double($1) * Double($1) } / Double(samples.count))
+            if rms.isFinite {
+                backgroundLevels.append(rms)
+                if backgroundLevels.count > 160 { backgroundLevels.removeFirst(backgroundLevels.count - 160) }
+            }
+        }
         if isRecording {
             recording.append(contentsOf: samples)
             // A brief pause ends a spoken command. A bounded recording avoids a lost endpoint.
@@ -105,7 +113,7 @@ private final class Resampler: @unchecked Sendable {
         let count = fromSample.map { max(0, min(ring.count, totalSamples - $0)) } ?? 0
         recording = Array(ring.suffix(count))
         isRecording = true
-        endpoint = CommandEndpoint(preRollSamples: count, fast: UserDefaults.standard.bool(forKey: "Friday.fastEndpoint"))
+        endpoint = CommandEndpoint(preRollSamples: count, fast: UserDefaults.standard.bool(forKey: "Friday.fastEndpoint"), backgroundRMS: backgroundLevels.min() ?? 0.0005)
     }
 
     public func finishRecording() throws -> URL? {
@@ -125,6 +133,6 @@ private final class Resampler: @unchecked Sendable {
         guard started else { return }
         started = false
         engine.stop(); engine.inputNode.removeTap(onBus: 0)
-        ring.removeAll(); totalSamples = 0
+        ring.removeAll(); backgroundLevels.removeAll(); totalSamples = 0
     }
 }

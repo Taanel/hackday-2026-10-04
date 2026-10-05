@@ -25,6 +25,10 @@ extension AudioInput: VoiceAudioInput {}
     var onError: ((any Error) -> Void)?
     var onWakeRecovery: (() -> Void)?
     var onFollowUpTimeout: (() -> Void)?
+    var onWakeTranscript: ((String) -> Void)?
+    var onAudioLevel: ((Double) -> Void)?
+    private var levelSamples = 0
+    private var levelEnergy = 0.0
     private(set) var followingReply = false
     private var followUpTimeout: Task<Void, Never>?
     private let audio: any VoiceAudioInput
@@ -47,6 +51,12 @@ extension AudioInput: VoiceAudioInput {}
         self.wake = wake; self.audio = audio
         audio.onFrames = { [weak self] samples in
             guard let self, self.awaitingWake else { return }
+            self.levelSamples += samples.count
+            self.levelEnergy += samples.reduce(0) { $0 + Double($1) * Double($1) }
+            if self.levelSamples >= 16000 {
+                self.onAudioLevel?(sqrt(self.levelEnergy / Double(self.levelSamples)))
+                self.levelSamples = 0; self.levelEnergy = 0
+            }
             self.frameContinuation?.yield(samples)
         }
         audio.onRecordingEnded = { [weak self] file in
@@ -73,6 +83,12 @@ extension AudioInput: VoiceAudioInput {}
                 for await data in events {
                     guard !Task.isCancelled else { return }
                     guard let detection = try? JSONDecoder().decode(WakeDetection.self, from: data) else { continue }
+                    if detection.type == "transcript", let text = detection.text {
+                        guard let self, self.awaitingWake, detection.transportSession == self.wakeSession,
+                              detection.generation == self.wakeGeneration else { continue }
+                        self.onWakeTranscript?(text)
+                        continue
+                    }
                     if detection.type == "error", let error = detection.error {
                         guard let self, self.awaitingWake, detection.transportSession == self.wakeSession,
                               detection.generation == nil || detection.generation == self.wakeGeneration else { continue }

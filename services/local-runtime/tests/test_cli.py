@@ -86,10 +86,10 @@ def snapshot_download(**kwargs):
     assert kwargs["revision"] == "8139e9089273319512c730218903784074133187"
 hub.snapshot_download = snapshot_download
 moonshine = types.ModuleType("moonshine_voice")
-moonshine.ModelArch = types.SimpleNamespace(TINY_STREAMING=2)
+moonshine.ModelArch = types.SimpleNamespace(SMALL_STREAMING=4)
 def download(language, arch, **kwargs):
-    assert (language, arch) == ("en", 2)
-    return str(kwargs["cache_root"] / "quantized_26_08_21"), 2
+    assert (language, arch) == ("de", 4)
+    return str(kwargs["cache_root"] / "quantized_26_08_24"), 4
 moonshine.get_model_for_language = download
 sys.modules["huggingface_hub"] = hub
 sys.modules["moonshine_voice"] = moonshine
@@ -100,5 +100,5 @@ raise SystemExit(main())
     assert result.returncode == 0
     metadata = json.loads(result.stdout)
     assert metadata["layaModelDirectory"] == str(tmp_path / "laya")
-    assert metadata["wakeArchitecture"] == "TINY_STREAMING"
+    assert metadata["wakeArchitecture"] == "SMALL_STREAMING"
     assert "download diagnostic" in result.stderr

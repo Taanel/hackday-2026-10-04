@@ -5,8 +5,8 @@ from typing import Callable
 
 LAYA_REPOSITORY = "aac6fef/laya-multilingual-coreml"
 LAYA_REVISION = "8139e9089273319512c730218903784074133187"
-MOONSHINE_REVISION = "quantized_26_08_21"
-MOONSHINE_MODEL_URL = "https://download.moonshine.ai/model/tiny-streaming-en/" + MOONSHINE_REVISION
+MOONSHINE_REVISION = "quantized_26_08_24"
+MOONSHINE_MODEL_URL = "https://download.moonshine.ai/model/small-streaming-de/" + MOONSHINE_REVISION
 
 
 def prepare_models(
@@ -29,8 +29,8 @@ def prepare_models(
     root.mkdir(parents=True, exist_ok=True)
     laya_directory = root / "laya"
     snapshot(repo_id=LAYA_REPOSITORY, revision=LAYA_REVISION, local_dir=laya_directory)
-    wake_path, arch = download_wake("en", model_arch.TINY_STREAMING, cache_root=root / "moonshine")
-    if arch != model_arch.TINY_STREAMING:
+    wake_path, arch = download_wake("de", model_arch.SMALL_STREAMING, cache_root=root / "moonshine")
+    if arch != model_arch.SMALL_STREAMING:
         raise ValueError("Moonshine returned an unexpected model architecture.")
     if Path(wake_path).name != MOONSHINE_REVISION:
         raise ValueError("Moonshine returned an unexpected model revision.")
@@ -41,6 +41,6 @@ def prepare_models(
         "licenses": {"laya": "Apache-2.0", "wake": "MIT"},
         "sources": {"laya": "https://huggingface.co/" + LAYA_REPOSITORY, "wake": MOONSHINE_MODEL_URL},
         "packages": {"laya-coreml": "0.2.0", "moonshine-voice": "0.1.5"},
-        "wakeArchitecture": "TINY_STREAMING",
-        "wakeLanguage": "en",
+        "wakeArchitecture": "SMALL_STREAMING",
+        "wakeLanguage": "de",
     }
