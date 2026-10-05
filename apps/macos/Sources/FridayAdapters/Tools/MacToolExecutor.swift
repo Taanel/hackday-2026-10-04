@@ -35,6 +35,8 @@ public struct MacToolExecutor: ToolExecutor {
             return try await projectLocator.find(query: query)
         case .findSafariTab(let query, let contents):
             return try await projectLocator.findSafari(query: query, searchContents: contents)
+        case .findLocalItem(let query, let kind):
+            return try await projectLocator.findLocalItem(query: query, kind: kind)
         case .homeAssistant(let action):
             return try await homeAssistant.execute(action)
         case .openFolder(let folder):

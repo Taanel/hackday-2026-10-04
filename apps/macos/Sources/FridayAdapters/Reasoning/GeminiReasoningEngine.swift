@@ -68,6 +68,7 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
     public func respond(to text: String) async throws -> String {
         switch try await plan(to: text) {
         case .answer(let answer), .researchedAnswer(let answer, _): return answer
+        case .weatherAnswer(let answer, _, _): return answer
         case .actions: throw FridayError.invalidActionPlan
         }
     }
@@ -94,11 +95,25 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
             let answer = try Self.decodeReply(answerData, status: 200)
             try Task.checkCancellation()
             await conversation.remember(question: text, answer: answer)
+            if let forecast = evidence.weather?.overview(for: Self.weatherQuestion(text, history: history)) {
+                return .weatherAnswer(text: answer, sources: evidence.sources, forecast: forecast)
+            }
             return .researchedAnswer(text: answer, sources: evidence.sources)
         }
         let plan = try Self.decodePlan(data, status: 200, parser: ActionArgumentParser(applications: applications ?? [:]))
         if case .answer(let answer) = plan { await conversation.remember(question: text, answer: answer) }
         return plan
+    }
+
+    static func weatherQuestion(_ text: String, history: [GeminiTurn]) -> String {
+        // A location supplied after "Welche Stadt?" retains the original period.
+        let explicit = #"\b(?:wetter|vorhersage|heute|morgen|übermorgen|woche|wochenende|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monat|jahr)\b|\d+[./]\d+"#
+        if text.count <= 80, text.range(of: explicit, options: [.regularExpression, .caseInsensitive]) == nil,
+           let previous = history.last(where: { $0.role == "user" })?.text,
+           previous.range(of: #"\b(?:wetter|vorhersage)\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return previous + " · " + text
+        }
+        return text
     }
 
     private func generate(text: String, key: String, allowResearch: Bool, history: [GeminiTurn]) async throws -> Data {
@@ -158,6 +173,8 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
                 function("find_project", "Bereits offenes Projekt in lokalen Fenstertiteln und Terminal-Tabs suchen; Inhalte bleiben auf dem Mac", "query"),
                 function("find_safari_tab", "Bereits offenen Safari-Tab anhand von Titel oder Adresse finden", "query"),
                 function("find_safari_content", "Bereits offenen Safari-Tab anhand seines lesbaren Seiteninhalts lokal finden", "query"),
+                function("find_file", "Vorhandene Datei nach ihrem Namen lokal mit Spotlight finden und öffnen; bei mehreren Treffern Auswahl zeigen", "query"),
+                function("find_folder", "Vorhandenen Ordner nach seinem Namen lokal mit Spotlight finden und im Finder öffnen", "query"),
                 function("open_folder", "Lokalen Finder-Ordner öffnen", "folder", MacFolder.allCases.map(\.rawValue)),
                 function("open_url", "Ausdrücklich genannte HTTP(S)-Webseitenadresse im Standardbrowser öffnen", "url"),
                 ["name": "control_home", "description": "Explizit angefordertes Home-Assistant-Gerät steuern. Nur eindeutiger Gerätename; keine zeitlichen/bedingten Aufträge.",
@@ -222,6 +239,9 @@ public struct GeminiReasoningEngine: ActionPlanningReasoningEngine {
             case "find_safari_tab", "find_safari_content":
                 guard Set(call.args.keys) == ["query"], let query = call.args["query"] else { throw FridayError.invalidActionPlan }
                 action = .findSafariTab(query: query, searchContents: call.name == "find_safari_content")
+            case "find_file", "find_folder":
+                guard Set(call.args.keys) == ["query"], let query = call.args["query"] else { throw FridayError.invalidActionPlan }
+                action = .findLocalItem(query: query, kind: call.name == "find_folder" ? .folder : .file)
             case "open_folder":
                 guard Set(call.args.keys) == ["folder"], let raw = call.args["folder"], let folder = MacFolder(rawValue: raw) else { throw FridayError.invalidActionPlan }
                 action = .openFolder(folder)

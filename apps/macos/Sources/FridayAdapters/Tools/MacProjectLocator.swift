@@ -6,6 +6,8 @@ public struct ProjectMatch: Sendable, Identifiable {
     public let id: UUID
     public let title: String
     public let application: String
+    public var detail: String? = nil
+    public var icon: String = "macwindow"
 }
 
 /// Searches locally. No screen image or terminal contents are sent to an LLM.
@@ -17,7 +19,7 @@ public actor MacProjectLocator {
         init(_ element: AXUIElement, pid: pid_t, query: String) { self.element = element; self.pid = pid; self.query = query }
     }
     private struct AppInfo: Sendable { let pid: pid_t; let name: String; let identifier: String }
-    private enum Target: Sendable { case window(WindowReference), terminal(windowID: Int, tty: String, query: String), safari(windowID: Int, url: String, query: String, contents: Bool) }
+    private enum Target: Sendable { case window(WindowReference), terminal(windowID: Int, tty: String, query: String), safari(windowID: Int, url: String, query: String, contents: Bool), file(url: URL, query: String, kind: LocalItemKind) }
     private struct Candidate: Sendable { let match: ProjectMatch; let target: Target; let score: Int }
     private var candidates: [Candidate] = []
     public var matches: [ProjectMatch] { candidates.map(\.match) }
@@ -98,6 +100,18 @@ public actor MacProjectLocator {
         }
         try Task.checkCancellation()
         switch candidate.target {
+        case .file(let url, let query, let kind):
+            try await MainActor.run {
+                try Task.checkCancellation()
+                guard !LocalFileSearch.rank([url], text: query, kind: kind).isEmpty else {
+                    throw AdapterError.unavailable("Die Datei wurde verschoben oder passt nicht mehr zur Suche. Bitte erneut suchen.")
+                }
+                if LocalFileSearch.shouldReveal(url) {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } else if !NSWorkspace.shared.open(url) {
+                    throw AdapterError.unavailable("Der Treffer konnte nicht geöffnet werden.")
+                }
+            }
         case .safari(let windowID, let url, let query, let contents):
             _ = try await safariRequest(op: "focus", query: query, contents: contents, windowID: windowID, url: url)
         case .terminal(let windowID, let tty, let query):
@@ -123,7 +137,27 @@ public actor MacProjectLocator {
         }
         try Task.checkCancellation()
         candidates = []
+        if case .file(let url, _, _) = candidate.target {
+            return "\(LocalFileSearch.shouldReveal(url) ? "Im Finder gezeigt" : "Geöffnet"): \(url.lastPathComponent)."
+        }
         return "Gefunden und fokussiert: \(candidate.match.application) · \(candidate.match.title)."
+    }
+
+    public func findLocalItem(query: String, kind: LocalItemKind) async throws -> String {
+        guard ToolRequest.findLocalItem(query: query, kind: kind).hasValidArguments else { throw AdapterError.unavailable("Bitte einen konkreten Datei- oder Ordnernamen nennen.") }
+        let search = await LocalFileSearch()
+        let result = try await search.search(text: query, kind: kind)
+        try Task.checkCancellation()
+        candidates = result.hits.prefix(8).map { hit in
+            Candidate(match: ProjectMatch(id: UUID(), title: hit.url.lastPathComponent, application: "Finder",
+                                          detail: hit.url.deletingLastPathComponent().path, icon: kind == .folder ? "folder" : "doc"),
+                      target: .file(url: hit.url, query: query, kind: kind), score: hit.score)
+        }
+        if let only = candidates.first, result.complete, result.hits.count == 1 { return try await focus(only.match.id) }
+        if !candidates.isEmpty {
+            return "\(result.hits.count)\(result.complete ? "" : "+") Treffer für „\(query)“. Wähle den passenden \(kind == .folder ? "Ordner" : "Dateinamen") anhand des Pfads\(result.hits.count > 8 ? "; die ersten 8 werden angezeigt" : "")."
+        }
+        return "Kein \(kind == .folder ? "Ordner" : "Dateiname") mit „\(query)“ im Spotlight-Index deines Benutzerordners gefunden. Bitte den Namen genauer nennen; nicht indexierte Orte sind hier nicht sichtbar."
     }
 
     public func findSafari(query: String, searchContents: Bool) async throws -> String {

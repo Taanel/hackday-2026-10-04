@@ -28,8 +28,8 @@ installiertes Modell. Die Auswahl steht in `~/Library/Application Support/Friday
 python3 scripts/configure-gemini.py
 ```
 
-Unten im Friday-Fenster den Schlüssel im Feld „Gemini API-Schlüssel“ eintragen und
-„Lokal speichern“ wählen. Alternativ verwendet das CLI oben denselben lokalen Store.
+Unter „Assistent → Gemini-Verbindung & Gespräch“ den API-Schlüssel eintragen und
+„Speichern“ wählen. Alternativ verwendet das CLI oben denselben lokalen Store.
 Die Datei liegt außerhalb von Repo und App-Bundle unter
 `~/Library/Application Support/Friday/Credentials/gemini-api-key.txt` (0600,
 Ordner 0700). Die App fragt für Gemini nicht mehr nach dem Schlüsselbund. Das Feld
@@ -44,7 +44,7 @@ Google; Hex, Wake, Laya und die auswählbare Piper-Stimme bleiben lokal. Recherc
 oder den ausdrücklich genannten Wetter-Ort an Open-Meteo.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
-Unter „TTS-Schlüssel · nur für Stimme“ lassen sich vier separate Google-Schlüssel
+Unter „Sprache → Vorlesen → Separate TTS-Schlüssel“ lassen sich vier Google-Schlüssel
 einzeln speichern, ersetzen und entfernen. Gespeicherte Schlüssel werden nicht
 wieder angezeigt. Sobald mindestens einer eingerichtet ist, verwendet die
 Sprachausgabe nur diese Schlüssel im Wechsel; Textantworten und Recherche bleiben
@@ -58,10 +58,10 @@ Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
 
 ## Direkt testen
 
-1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
-2. „Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
+1. „Friday öffnen“ im Menüleisten-Menü wählen und auf „Bereit · Laya und Hex lokal“ warten.
+2. „Hey Friday“ einschalten und macOS-Mikrofonzugriff erlauben.
    Das Setup verwendet Moonshine Small Streaming Deutsch mit „Hey Friday“ und „Hi Friday“ als Schlüsselphrasen.
-   Unter „Mikrofon und Wake-Erkennung prüfen“ sind Pegel und der zuletzt erkannte
+   Unter „Sprache → Aktivierung → Mikrofon-Diagnose“ sind Pegel und der zuletzt erkannte
    Text sichtbar, solange das Einstellungsfenster aktiv ist; diese Diagnose wird nicht gespeichert.
    Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
    anklicken und dreimal nur die Phrase einsprechen, jeweils kurz still sein.
@@ -70,7 +70,7 @@ Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
    „Zurücksetzen“ entfernt das Profil. Die Anlernfunktion ist ein Prototyp;
    ihre Zuverlässigkeit mit der eigenen Stimme muss live geprüft werden.
 3. „Hey Friday, öffne Safari“ sagen; etwa 0,75 Sekunden
-   Stille beenden die Aufnahme. Das persönliche Klangmuster und „Friday“ allein sind unter „Wake-Erkennung erweitern“ ausdrücklich zuschaltbar; standardmäßig können sie nicht aktivieren.
+   Stille beenden die Aufnahme. Das persönliche Klangmuster und „Friday“ allein sind unter „Sprache → Aktivierung → Zusätzliche Wake-Optionen“ ausdrücklich zuschaltbar; standardmäßig können sie nicht aktivieren.
 4. „Hey Friday, suche nach test auf Safari“ öffnet eine Google-Suche in Safari.
    Auch „Öffne Safari und suche nach Test“ und „Suche nach Test“ funktionieren als direkte Safari-Aktion.
    „Kannst du Shaper 3D öffnen?“ erkennt die installierte App Shapr3D auch mit dieser
@@ -121,7 +121,7 @@ Die Kugel in der Menüleiste öffnet das Friday-Menü. „Friday öffnen“ oder
 auf die Overlay-Kugel → „Einstellungen und Antworten öffnen“ öffnet das Fenster. Ein normaler Overlay-Klick startet die Aufnahme. Schließen dieses Fensters
 beendet Friday nicht. „Beenden“ im Menü beendet auch die Mikrofon-Helper.
 
-Unter „Orbs zuordnen · 9 Animationen“ einen Zustand wählen und auf die gewünschte
+Unter „Darstellung“ einen Zustand wählen und auf die gewünschte
 Animation klicken. Die Zuordnung gilt sofort für Overlay und Fenster und bleibt
 lokal gespeichert. Alle neun Zustände sind einzeln einstellbar; „Standard
 wiederherstellen“ setzt alle Zuordnungen zurück. Idle/Wake-Bereitschaft bleiben
@@ -133,7 +133,7 @@ Terminal.app-Tabs. Ein Treffer wird fokussiert; bei mehreren öffnet sich eine
 Auswahl im Friday-Fenster. Dafür sind Bedienungshilfen und beim ersten Terminal-
 Zugriff die macOS-Automationsfreigabe erforderlich. Gelesene Titel und Inhalte
 gehen weder an Gemini noch an TTS. Die Suche liest keine Screenshots, komplette
-Terminal-History oder Browser-/Editor-Inhalte. macOS übernimmt beim Fokussieren
+Terminal-History oder Editor-Inhalte. Eine ausdrücklich angeforderte Safari-Inhaltssuche liest begrenzt Seitentext lokal. macOS übernimmt beim Fokussieren
 den Wechsel zum zugehörigen Schreibtisch; Friday ermittelt keine Space-Nummern.
 
 „Wechsel Schreibtisch“, „Wechsle zum nächsten Schreibtisch“ und „Wechsel Schreibtisch
@@ -148,8 +148,42 @@ erneut über Gemini ausgeführt. Das ist noch kein allgemeiner Klick-Agent.
 Unterstützte erste Aktionen: automatisch erkannte installierte Programme öffnen, Safari-Suchen starten und Markdown-Notizen
 unter `~/Library/Application Support/Friday/Notes` speichern. Freie Terminalbefehle,
 Klicken in fremden Apps und Einfügen am Cursor folgen später.
-„Diktat-Vorschau“ zeigt den erkannten Text. „LLM-Antwort vorlesen“ ist optional;
+„Diktat“ zeigt den erkannten Text. „Sprache → Vorlesen → Antworten vorlesen“ ist optional;
 App-Starts und Notizen bleiben stumm.
+
+## Oberfläche und lokale Suche
+
+Das Fenster trennt **Assistent**, **Sprache**, **Computer**, **Home Assistant** und
+**Darstellung**. Diagnose, Anlernen und Schlüssel sind in ihrem Bereich einklappbar.
+Die Alltagsansicht enthält Aufnahme, Texteingabe, Antwort und auswählbare Treffer.
+
+„Jo, such den Tab raus, wo ich XY offen habe“ findet bestehende Safari-Tabs anhand
+von Titel, Adresse und bei Bedarf lokal lesbarem Seitentext. Titel/Links werden
+zuerst geprüft; die Inhaltssuche ist auf 20 Tabs begrenzt. „Such den Terminal-Tab
+raus, wo ich XY offen habe“ findet Fenster/Terminal-Tabs. Ein eindeutiger Treffer
+wird nach vorn gebracht; mehrere Treffer erscheinen zur Auswahl.
+
+„Such mir Datei Rechnung.pdf raus und öffne sie“ und „Such den Ordner Friday im
+Finder“ verwenden eine einmalige, auf vier Sekunden begrenzte
+[Spotlight-Abfrage](https://developer.apple.com/library/archive/documentation/Carbon/Conceptual/SpotlightQuery/Concepts/QueryingMetadata.html).
+Gesucht wird nach Namen im indexierten Benutzerordner, ohne dauernden Dateiscan.
+Versteckte Verzeichnisse, lokale Zugangsdaten und Library-Inhalte außer iCloud Drive
+werden ausgelassen. Pfade erscheinen bei mehreren Treffern; höchstens acht werden
+angezeigt. Nicht indexierte Orte bleiben unsichtbar. Ein einzelnes Dokument wird
+mit seiner Standard-App geöffnet, ein Ordner im Finder; ausführbare Dateien und
+Installationsdateien werden nur im Finder gezeigt. Lokale Suchinhalte werden nicht
+an Gemini übertragen, auch wenn Gemini den typisierten Suchauftrag liefert.
+
+Bei Wetterfragen zeigt Friday Ort, Datumsbereich, Tages-Minimum/Maximum,
+Regenwahrscheinlichkeit und Quelle unter der Overlay-Kugel. Die Werte stammen
+direkt aus Open-Meteo. „Nächste Woche“ meint Montag bis Sonntag der nächsten
+Kalenderwoche; eine nachgereichte Stadt behält diesen Zeitraum. Unterstützt sind
+außerdem heute, morgen, übermorgen, diese Woche und Wochenende. Andere Zeiträume
+bleiben vorerst Textantworten. Ohne Ort fragt Friday nach. Die Karte lässt sich
+schließen, verschwindet beim nächsten Auftrag oder 40 Sekunden nach der Antwort;
+im Antwortfenster bleibt die Vorhersage erhalten. Auf macOS 26 nutzt das Overlay
+[natives Liquid Glass](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:));
+ältere Systeme verwenden Material, reduzierte Transparenz eine deckende Fläche.
 
 ## Bausteine
 
@@ -158,11 +192,11 @@ App-Starts und Notizen bleiben stumm.
 | Wake | Moonshine Small Streaming Deutsch (123M) für Hey/Hi Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
-| Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
+| Computer Use | Apps, Safari-Suche, Notizen, Schreibtischwechsel, offene Fenster/Tabs und Spotlight-Dateisuche |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
 | Text → Sprache | Gemini 3.8 Flash-/Flash-Lite-TTS, bis vier separate Sprachschlüssel; Piper Thorsten High als Ersatz oder eigene Auswahl |
 | Recherche | DuckDuckGo-Snippets, Open-Meteo-Prognose, Quellen separat zur Antwort |
-| Oberfläche | Menüleisten-Kugel und transparentes Thinking-Orb-Overlay; native MIT-Animationen |
+| Oberfläche | Fünf Einstellungsbereiche, Menüleisten-Kugel, transparentes Orb-Overlay und Wetterkarte |
 
 Laya-/Wake-Modelle und Revisionen stehen nach Setup in `models.json`; Hex-Release
 und Prüfsumme in `hex-release.json`, beide im Friday-Application-Support-Ordner.

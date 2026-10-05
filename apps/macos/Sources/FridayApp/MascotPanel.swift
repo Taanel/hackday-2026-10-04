@@ -55,8 +55,8 @@ struct MascotImage: View {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = NSHostingView(rootView: FloatingAssistant(model: model, open: showAssistant))
         mascotPanel = panel
-        overlaySubscription = model.$overlayTranscript.combineLatest(model.$isRecording).sink { [weak self] text, recording in
-            self?.layoutMascot(transcript: text, recording: recording)
+        overlaySubscription = model.$overlayTranscript.combineLatest(model.$isRecording, model.$weatherOverlay).sink { [weak self] text, recording, weather in
+            self?.layoutMascot(transcript: text, recording: recording, weatherDays: weather?.days.count ?? 0)
         }
         projectSubscription = model.$projectMatches.dropFirst().sink { [weak self] matches in
             if !matches.isEmpty { self?.showAssistant() }
@@ -70,26 +70,28 @@ struct MascotImage: View {
     }
 
     @objc private func positionMascot() {
-        layoutMascot(transcript: model.overlayTranscript, recording: model.isRecording)
+        layoutMascot(transcript: model.overlayTranscript, recording: model.isRecording, weatherDays: model.weatherOverlay?.days.count ?? 0)
     }
 
-    private func layoutMascot(transcript: String, recording: Bool) {
+    private func layoutMascot(transcript: String, recording: Bool, weatherDays: Int) {
         guard let panel = mascotPanel, let frame = NSScreen.main?.visibleFrame else { return }
-        let size = transcript.isEmpty ? NSSize(width: 96, height: recording ? 132 : 96) : NSSize(width: 280, height: 164)
+        let size = weatherDays > 0
+            ? NSSize(width: 376, height: min(frame.height - 40, CGFloat(232 + min(7, weatherDays) * 30 + (transcript.isEmpty ? 0 : 74))))
+            : (transcript.isEmpty ? NSSize(width: 96, height: recording ? 132 : 96) : NSSize(width: 280, height: 164))
         panel.setFrame(NSRect(x: frame.maxX - 20 - size.width, y: frame.maxY - 20 - size.height,
                              width: size.width, height: size.height), display: true)
     }
 
     func showAssistant() {
         if assistantWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 660),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 700),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
             window.title = "Friday"
             window.delegate = self
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: AssistantView(model: model))
-            window.minSize = NSSize(width: 500, height: 520)
+            window.minSize = NSSize(width: 760, height: 560)
             window.center()
             assistantWindow = window
         }
@@ -124,6 +126,9 @@ struct FloatingAssistant: View {
             }
             if !model.overlayTranscript.isEmpty {
                 OverlayTranscriptBubble(text: model.overlayTranscript)
+            }
+            if let weather = model.weatherOverlay {
+                WeatherOverviewCard(forecast: weather, dismiss: model.dismissWeatherOverlay)
             }
         }
         .padding(.horizontal, 8)

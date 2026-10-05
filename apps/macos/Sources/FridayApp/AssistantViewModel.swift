@@ -30,6 +30,10 @@ import FridayAdapters
     @Published private(set) var response = ""
     @Published private(set) var answerSources: [AnswerSource] = []
     @Published private(set) var projectMatches: [ProjectMatch] = []
+    @Published private(set) var weatherOverview: WeatherForecast?
+    @Published private(set) var weatherOverlay: WeatherForecast?
+    private var weatherExpiry: Task<Void, Never>?
+    private var weatherGeneration = UUID()
     @Published var ttsVoice = UserDefaults.standard.string(forKey: "Friday.ttsVoice") ?? "Kore" {
         didSet {
             cloudSpeech?.voiceName = ttsVoice
@@ -170,6 +174,28 @@ import FridayAdapters
         overlayTranscript = ""
     }
 
+    func showWeather(_ forecast: WeatherForecast?) {
+        dismissWeatherOverlay()
+        weatherOverview = forecast; weatherOverlay = forecast
+    }
+
+    func dismissWeatherOverlay() {
+        weatherGeneration = UUID()
+        weatherExpiry?.cancel(); weatherExpiry = nil
+        weatherOverlay = nil
+    }
+
+    func expireWeather(after duration: Duration = .seconds(40)) {
+        guard weatherOverlay != nil else { return }
+        weatherExpiry?.cancel()
+        let token = weatherGeneration
+        weatherExpiry = Task { [weak self] in
+            do { try await Task.sleep(for: duration) } catch { return }
+            guard let self, self.weatherGeneration == token else { return }
+            self.dismissWeatherOverlay()
+        }
+    }
+
     func expireTranscript(after duration: Duration = .seconds(8)) {
         guard !overlayTranscript.isEmpty else { return }
         transcriptExpiry?.cancel()
@@ -243,6 +269,7 @@ import FridayAdapters
                 if phase == .listening { model.status = model.allowBareWake ? "Höre auf „Hey Friday“, „Hi Friday“ oder „Friday“ · lokal" : "Höre auf „Hey Friday“ oder „Hi Friday“ · lokal" }
                 else if phase == .recording {
                     model.clearTranscript()
+                    model.dismissWeatherOverlay()
                     model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme."
                 }
             }
@@ -377,6 +404,7 @@ import FridayAdapters
         let shouldSpeak = speakResponses
         speech.stop()
         clearTranscript()
+        showWeather(nil)
         replayText = nil; canReplayAnswer = false
         isWorking = true
         response = ""
@@ -424,6 +452,7 @@ import FridayAdapters
                 guard generation == token else { return }
                 response = result.text
                 answerSources = result.sources
+                showWeather(result.weather)
                 projectMatches = matches
                 successfulAction = result.route == .fastAction
                 if result.route == .reasoning { replayText = result.text; canReplayAnswer = true }
@@ -466,7 +495,10 @@ import FridayAdapters
                     showTranscript("Du kannst jetzt direkt antworten · Stop beendet das Zuhören")
                 } catch { await rearmVoice(token: token) }
             } else { await rearmVoice(token: token) }
-            if generation == token { expireTranscript(after: successfulAction ? .seconds(1) : .seconds(8)) }
+            if generation == token {
+                expireTranscript(after: successfulAction ? .seconds(1) : .seconds(8))
+                expireWeather()
+            }
         }
     }
 
@@ -531,6 +563,7 @@ import FridayAdapters
         microphoneTask?.cancel()
         speech.stop()
         clearTranscript()
+        dismissWeatherOverlay()
         isTrainingWake = false
         clearTrainingFiles()
         if voice != nil {
@@ -566,6 +599,7 @@ import FridayAdapters
 
     func startRecording() {
         guard !shuttingDown, isReady, !isWorking, !isRecording else { return }
+        dismissWeatherOverlay()
         isWorking = true
         microphoneTask = Task {
             do { try await voice?.manualRecording() }
@@ -579,6 +613,7 @@ import FridayAdapters
     }
 
     func shutdown() async {
+        dismissWeatherOverlay()
         shuttingDown = true
         clearTranscript()
         clearTrainingFiles()

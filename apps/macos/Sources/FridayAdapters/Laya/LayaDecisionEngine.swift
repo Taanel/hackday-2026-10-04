@@ -27,6 +27,8 @@ public struct LayaDecisionEngine: FastDecisionEngine {
             modelInput = "Finde das bereits geöffnete Projekt \(query) in einem lokalen Safari-Tab."
         } else if case .findProject(let query) = parser.parse(intent: "find_project", text: text) {
             modelInput = "Finde das bereits geöffnete Projekt \(query) in einem lokalen Fenster oder Terminal-Tab auf diesem Mac."
+        } else if case .findLocalItem(let query, let kind) = parser.parse(intent: "find_project", text: text) {
+            modelInput = "Suche eine vorhandene \(kind == .folder ? "Projektmappe" : "Projektdatei") mit dem Namen \(query) auf diesem Mac."
         } else if case .searchSafari(let query) = parser.parse(intent: "search_web", text: text) {
             modelInput = "Bitte führe eine Websuche in Safari nach dem Suchbegriff \(query) aus."
         } else if case .switchDesktop(let direction) = parser.parse(intent: "switch_desktop", text: text) {

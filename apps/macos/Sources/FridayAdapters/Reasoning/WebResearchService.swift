@@ -4,6 +4,7 @@ import FridayCore
 struct ResearchEvidence: Sendable {
     let text: String
     let sources: [AnswerSource]
+    var weather: WeatherForecast? = nil
 }
 
 /// Public endpoints only: search snippets and weather data, never arbitrary URLs.
@@ -41,7 +42,7 @@ struct WebResearchService: Sendable {
         let context = try Self.decodeWeather(data)
         return ResearchEvidence(text: "Ort: \(place.name), \(place.admin1 ?? ""), \(place.country ?? "").\n\(context)", sources: [
             AnswerSource(title: "Open-Meteo · \(place.name)", url: url)
-        ])
+        ], weather: try Self.decodeForecast(data, place: place.name, source: url))
     }
 
     private struct Geocoding: Decodable {
@@ -131,33 +132,47 @@ struct WebResearchService: Sendable {
         return text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func decodeWeather(_ data: Data) throws -> String {
-        struct Forecast: Decodable {
+    private struct Forecast: Decodable {
             struct Daily: Decodable {
                 let time: [String]
                 let temperature_2m_max: [Double?]; let temperature_2m_min: [Double?]
                 let precipitation_probability_max: [Double?]; let weather_code: [Int?]
             }
             let daily: Daily
-        }
-        guard let daily = try? JSONDecoder().decode(Forecast.self, from: data).daily,
+            let timezone: String?
+    }
+
+    static func decodeForecast(_ data: Data, place: String, source: URL) throws -> WeatherForecast {
+        let forecast = try? JSONDecoder().decode(Forecast.self, from: data)
+        guard let daily = forecast?.daily,
               !daily.time.isEmpty, daily.time.count <= 16,
               [daily.temperature_2m_max.count, daily.temperature_2m_min.count,
                daily.precipitation_probability_max.count, daily.weather_code.count].allSatisfy({ $0 == daily.time.count }),
-              daily.temperature_2m_max.contains(where: { $0 != nil }) else { throw searchError }
+              daily.temperature_2m_max.contains(where: { $0 != nil }),
+              Set(daily.time).count == daily.time.count,
+              daily.time == daily.time.sorted(),
+              daily.time.allSatisfy({ $0.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil }),
+              (daily.temperature_2m_max + daily.temperature_2m_min).allSatisfy({ $0 == nil || (-100...70).contains($0!) }),
+              daily.precipitation_probability_max.allSatisfy({ $0 == nil || (0...100).contains($0!) }) else { throw searchError }
+        let days = daily.time.indices.map { WeatherDay(date: daily.time[$0], low: daily.temperature_2m_min[$0], high: daily.temperature_2m_max[$0], rainProbability: daily.precipitation_probability_max[$0], code: daily.weather_code[$0]) }
+        return WeatherForecast(place: place, days: days, source: source, timeZoneIdentifier: forecast?.timezone ?? "UTC")
+    }
+
+    static func decodeWeather(_ data: Data) throws -> String {
+        let forecast = try decodeForecast(data, place: "", source: URL(string: "https://open-meteo.com/")!)
         let dateParser = DateFormatter(); dateParser.locale = Locale(identifier: "en_US_POSIX")
         dateParser.timeZone = TimeZone(secondsFromGMT: 0); dateParser.dateFormat = "yyyy-MM-dd"
         let weekday = DateFormatter(); weekday.locale = Locale(identifier: "de_DE")
         weekday.timeZone = TimeZone(secondsFromGMT: 0); weekday.dateFormat = "EEEE"
-        let lines = daily.time.indices.map { i -> String in
+        let lines = forecast.days.map { day -> String in
             let temperatures: String
-            if let low = daily.temperature_2m_min[i], let high = daily.temperature_2m_max[i] {
+            if let low = day.low, let high = day.high {
                 temperatures = "\(low) bis \(high) °C"
             } else { temperatures = "keine Temperaturdaten verfügbar" }
-            let rain = daily.precipitation_probability_max[i].map { "Regenwahrscheinlichkeit \($0) %" } ?? "keine Regenwahrscheinlichkeit verfügbar"
-            let code = daily.weather_code[i].map { "WMO-Wettercode \($0)" } ?? "kein Wettercode verfügbar"
-            let day = dateParser.date(from: daily.time[i]).map { weekday.string(from: $0) + ", " } ?? ""
-            return "\(day)\(daily.time[i]): \(temperatures), \(rain), \(code)"
+            let rain = day.rainProbability.map { "Regenwahrscheinlichkeit \($0) %" } ?? "keine Regenwahrscheinlichkeit verfügbar"
+            let code = day.code.map { "WMO-Wettercode \($0)" } ?? "kein Wettercode verfügbar"
+            let label = dateParser.date(from: day.date).map { weekday.string(from: $0) + ", " } ?? ""
+            return "\(label)\(day.date): \(temperatures), \(rain), \(code)"
         }
         return "Aktuelle Vorhersage, täglich. WMO-Codes: 0 klar, 1–3 bewölkt, 45/48 Nebel, 51–67 Regen, 71–77 Schnee, 80–86 Schauer, 95–99 Gewitter. Verwende nur die angefragten Tage. Außerhalb dieses Zeitraums keine Prognose erfinden.\n" + lines.joined(separator: "\n")
     }

@@ -15,3 +15,11 @@
 {"text":"Was ist Home Assistant?","expectedRoute":"reasoning","intent":"reasoning"}
 {"text":"Ist das Wohnzimmer aus?","expectedRoute":"reasoning","intent":"reasoning"}
 {"text":"Öffne Safari und lösche alle Dateien","expectedRoute":"reasoning","intent":"unknown"}
+{"text": "Jo, such den Tab raus, wo ich Friday offen habe", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findSafariTab"}
+{"text": "Such mir den Safari-Tab mit Inhalt Strompreis raus", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findSafariTab"}
+{"text": "Such den Tab mit Seite GitHub", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findSafariTab"}
+{"text": "Such mir mal Datei Rechnung.pdf raus und öffne sie mir mal", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findLocalItem"}
+{"text": "Finde Datei Bericht 2026.pdf", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findLocalItem"}
+{"text": "Such den Ordner Friday im Finder", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findLocalItem"}
+{"text": "Such mir mal raus, wo der Ordner Friday ist, und mache mir den im Finder auf", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findLocalItem"}
+{"text": "Wo habe ich Projekt Friday offen?", "expectedRoute": "fastAction", "intent": "find_project", "expectedTool": "findProject"}

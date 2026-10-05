@@ -32,27 +32,38 @@ import FridayAdapters
 struct HomeAssistantSettingsView: View {
     @ObservedObject var settings: HomeAssistantSettings
     let disabled: Bool
+    @State private var filter = ""
+    private var visibleEntities: [HomeAssistantEntity] {
+        settings.entities.filter { filter.isEmpty || $0.name.localizedStandardContains(filter) || $0.entity_id.localizedStandardContains(filter) }
+    }
     var body: some View {
-        DisclosureGroup("Home Assistant") {
-            VStack(alignment: .leading, spacing: 8) {
+        Form {
+            Section("Verbindung") {
                 TextField("Serveradresse", text: $settings.address).textFieldStyle(.roundedBorder)
-                SecureField("Langlebiger Token · leer lassen zum Beibehalten", text: $settings.token).textFieldStyle(.roundedBorder)
+                SecureField("Zugriffstoken", text: $settings.token, prompt: Text("Neuen Token eintragen")).textFieldStyle(.roundedBorder)
                 HStack {
                     Button("Speichern & verbinden") { Task { await settings.connect(save: true) } }
                     Button("Geräte neu laden") { Task { await settings.connect(save: false) } }
                 }
                 Text(settings.status.isEmpty ? "Token im Home-Assistant-Profil erstellen. Zugangsdaten bleiben lokal auf diesem Mac." : settings.status)
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Zum Beispiel: Wohnzimmer an · Licht im Wohnzimmer aus · Dimme Wohnzimmer Licht auf 30 Prozent · Aktiviere Szene Abend.")
+            }
+            Section("Befehle") {
+                Text("„Wohnzimmer an“\n„Licht im Wohnzimmer aus“\n„Dimme Wohnzimmer Licht auf 30 Prozent“\n„Aktiviere Szene Abend“")
                     .font(.caption).foregroundStyle(.secondary)
-                ForEach(settings.entities.prefix(40)) { entity in
+                Text("Raumbefehle steuern die zugeordneten Lampen. Friday prüft anschließend die gemeldeten Zustände.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Geräte & Szenen · \(settings.entities.count)") {
+                TextField("Nach Name oder ID filtern", text: $filter)
+                ForEach(visibleEntities.prefix(40)) { entity in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entity.name).font(.caption)
                         Text(entity.entity_id).font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                 }
-                if settings.entities.count > 40 { Text("\(settings.entities.count - 40) weitere Geräte sind ebenfalls steuerbar.").font(.caption) }
-            }.padding(.vertical, 8).disabled(disabled || settings.working)
-        }
+                if visibleEntities.count > 40 { Text("\(visibleEntities.count - 40) weitere Treffer. Suche eingrenzen, um sie zu sehen.").font(.caption).foregroundStyle(.secondary) }
+                if settings.entities.isEmpty { Text("Lade die Geräte über „Geräte neu laden“.").font(.caption).foregroundStyle(.secondary) }
+            }
+        }.formStyle(.grouped).disabled(disabled || settings.working)
     }
 }

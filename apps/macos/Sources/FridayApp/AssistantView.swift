@@ -2,213 +2,171 @@ import SwiftUI
 import FridayCore
 import FridayAdapters
 
+enum AssistantPage: String, CaseIterable, Identifiable {
+    case assistant = "Assistent", voice = "Sprache", computer = "Computer", home = "Home Assistant", appearance = "Darstellung"
+    var id: Self { self }
+    var icon: String {
+        switch self { case .assistant: "sparkle"; case .voice: "waveform"; case .computer: "desktopcomputer"; case .home: "house"; case .appearance: "circle.dotted" }
+    }
+    var subtitle: String {
+        switch self {
+        case .assistant: "Sprechen, fragen und direkt ausführen."
+        case .voice: "Aktivierung, Aufnahme und Vorlesen."
+        case .computer: "Offene Inhalte finden und auf dem Mac arbeiten."
+        case .home: "Dein Zuhause verbinden und Geräte steuern."
+        case .appearance: "Die Kugel an deinen Geschmack anpassen."
+        }
+    }
+}
+
 struct AssistantView: View {
     @ObservedObject var model: AssistantViewModel
-    @State private var showsOrbGallery = false
+    @State var page: AssistantPage = .assistant
 
     var body: some View {
-        ScrollView {
+        HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Friday").font(.largeTitle.bold())
-                        Text("Dein Assistent für den Mac").foregroundStyle(.secondary)
+                Label("Friday", systemImage: "circle.dotted").font(.title2.weight(.semibold)).padding(.horizontal, 12)
+                VStack(spacing: 4) {
+                    ForEach(AssistantPage.allCases) { item in
+                        Button { page = item } label: {
+                            Label(item.rawValue, systemImage: item.icon)
+                                .font(.system(size: 13, weight: page == item ? .semibold : .regular))
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
+                                .foregroundStyle(page == item ? Color.accentColor : Color.primary)
+                                .background(page == item ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                        }.buttonStyle(.plain).accessibilityAddTraits(page == item ? .isSelected : [])
                     }
-                    Spacer()
-                    AssistantOrb(phase: model.phase, windowContent: true)
-                        .scaleEffect(0.625).frame(width: 40, height: 40)
                 }
+                Spacer()
+                Label(model.isReady ? "Modelle bereit" : "Modelle laden", systemImage: model.isReady ? "checkmark.circle" : "clock")
+                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+            }.padding(12).padding(.vertical, 10).frame(width: 190)
+                .background(Color(nsColor: .controlBackgroundColor))
+            Divider()
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(page.rawValue).font(.title2.weight(.semibold))
+                    Text(page.subtitle).font(.callout).foregroundStyle(.secondary)
+                }.padding(24)
+                Divider()
+                Group {
+                    switch page {
+                    case .assistant: assistant
+                    case .voice: VoiceSettingsView(model: model)
+                    case .computer: computer
+                    case .home: HomeAssistantSettingsView(settings: model.homeSettings, disabled: model.isWorking)
+                    case .appearance: ScrollView { OrbGallery().padding(24) }
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }.background(Color(nsColor: .windowBackgroundColor))
+        }.frame(minWidth: 760, minHeight: 560)
+            .onChange(of: model.projectMatches.count) { _, count in if count > 0 { page = .assistant } }
+    }
 
-                Text("Sag „Hey Friday“ oder „Hi Friday“ und deinen Auftrag. Oder klicke zum Sprechen auf die Overlay-Kugel.")
-                    .font(.callout).foregroundStyle(.secondary)
-
-                HStack(spacing: 16) {
-                    AssistantOrb(phase: model.phase, windowContent: true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(model.phase.label).font(.title3.weight(.semibold))
+    private var assistant: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 12) {
+                    AssistantOrb(phase: model.phase, windowContent: true).scaleEffect(0.625).frame(width: 40, height: 40)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.phase.label).font(.headline)
                         Text(model.status).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 16))
-
-                if !model.response.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Antwort").font(.headline)
-                        Text(model.response).textSelection(.enabled)
-                        ForEach(model.answerSources, id: \.url) { source in
-                            Link(source.title, destination: source.url).font(.caption)
-                        }
-                        ForEach(model.projectMatches) { match in
-                            Button { model.focusProjectMatch(match.id) } label: {
-                                HStack {
-                                    Image(systemName: "macwindow")
-                                    VStack(alignment: .leading) {
-                                        Text(match.application).font(.caption).foregroundStyle(.secondary)
-                                        Text(match.title).lineLimit(2)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "arrow.up.forward")
-                                }.frame(maxWidth: .infinity)
-                            }.disabled(model.isWorking)
-                        }
-                        if model.canReplayAnswer {
-                            Button("Noch einmal vorlesen", systemImage: "speaker.wave.2.fill") { model.replayAnswer() }
-                                .disabled(model.isWorking)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
-                }
-
-                HStack {
-                    Toggle("Hey Friday aktivieren", isOn: Binding(
-                        get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }
-                    ))
-                    .toggleStyle(.switch)
-                    .disabled(!model.isReady || model.isWorking)
-                    Spacer()
-                    if model.isRecording {
-                        Button("Aufnahme beenden") { model.stopRecording() }
-                    } else {
-                        Button("Sprechen", systemImage: "mic.fill") { model.startRecording() }
-                            .disabled(!model.isReady || model.isWorking)
-                    }
-                }
-                Text(model.wakeEnabled ? "Mikrofon aktiv · Erkennung läuft lokal." : "Mikrofon startet beim Aktivieren oder über „Sprechen“.")
-                    .font(.caption).foregroundStyle(.secondary)
-                if model.wakeEnabled {
-                    DisclosureGroup("Mikrofon und Wake-Erkennung prüfen") {
-                        ProgressView(value: min(1, model.microphoneLevel * 8))
-                        Text("Sprich normal laut. Der Balken zeigt, ob das Mikrofon dich hört.").font(.caption).foregroundStyle(.secondary)
-                        Text(model.lastWakeTranscript.isEmpty ? "Noch keine Sprache erkannt." : "Zuletzt gehört: \(model.lastWakeTranscript)").font(.caption).textSelection(.enabled)
-                        Text("Diese Anzeige bleibt lokal und wird nicht gespeichert.").font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-                Toggle("Schneller Sprechabschluss · 500 ms Pause", isOn: $model.fastEndpoint)
-                    .toggleStyle(.checkbox).disabled(model.isWorking)
-                Text("Für kurze Befehle. Ausschalten, wenn du längere Denkpausen beim Sprechen brauchst.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle("Nach Rückfragen direkt antworten · höchstens 8 Sekunden warten", isOn: $model.conversationMode)
-                    .toggleStyle(.checkbox).disabled(model.isWorking)
-                DisclosureGroup("Wake-Erkennung erweitern") {
-                    Toggle("Auch auf „Friday“ allein reagieren", isOn: $model.allowBareWake).toggleStyle(.checkbox)
-                    Toggle("Klangmuster darf allein aktivieren · experimentell", isOn: $model.allowPersonalWake).toggleStyle(.checkbox)
-                    Text("Beides kann normale Gespräche als Aktivierung verstehen. Änderungen gelten beim nächsten Aktivieren.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.disabled(model.wakeEnabled || model.isWorking)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Button(model.wakeTrainingCount > 0 ? "Sprachprobe \(model.wakeTrainingCount + 1)/3 aufnehmen" : "Hey Friday anlernen", systemImage: "waveform") {
-                            model.startWakeTraining()
-                        }
-                        .disabled(!model.isReady || model.isWorking)
-                        if model.personalWakeReady || model.wakeTrainingCount > 0 {
-                            Button("Zurücksetzen") { model.resetPersonalWake() }
-                                .disabled(model.isWorking)
-                        }
-                    }
-                    Text(model.personalWakeReady ? "Klangmuster gespeichert · Aktivierung unter Wake-Erkennung erweitern ist optional." : "Dreimal nur „Hey Friday“ einsprechen. Klangmuster-Erkennung ist eine Testfunktion.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-
-                Picker("Modus", selection: $model.mode) {
-                    Text("Assistent").tag(InputMode.assistant)
-                    Text("Diktat-Vorschau").tag(InputMode.dictation)
-                }
-                .pickerStyle(.segmented)
-                .disabled(model.isWorking)
-
-                TextField("Zum Beispiel: Öffne Safari oder Notiz: Milch kaufen", text: $model.input, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...4)
-                    .onSubmit { model.submit() }
-
-                HStack {
-                    Button("Ausführen") { model.submit() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(model.isWorking || !model.isReady)
-                    if model.isWorking {
-                        Button("Abbrechen") { model.cancel() }
-                    }
-                    Spacer()
-                    Toggle("LLM-Antwort vorlesen", isOn: $model.speakResponses)
-                        .toggleStyle(.checkbox)
-                }
-                Text("Computeraktionen und Diktat bleiben stumm.")
-                    .font(.caption).foregroundStyle(.secondary)
-                if model.usesCloudSpeech {
-                    Picker("Sprachausgabe", selection: $model.ttsProvider) {
-                        Text("Piper · Deutsch · lokal und kostenlos").tag("local")
-                        Text("Gemini 3.8 · Flash / Flash-Lite").tag("gemini")
-                    }.disabled(model.isWorking)
-                    if model.ttsProvider == "gemini" {
-                    Picker("Stimme", selection: $model.ttsVoice) {
-                        Text("Kore · klar").tag("Kore")
-                        Text("Aoede · entspannt").tag("Aoede")
-                        Text("Charon · ruhig").tag("Charon")
-                    }.disabled(model.isWorking)
-                    }
-                    Text(model.speechNotice)
-                        .font(.caption).foregroundStyle(.secondary)
-                    DisclosureGroup("TTS-Schlüssel · nur für Stimme") {
-                        ForEach(0..<4, id: \.self) { slot in
-                            HStack {
-                                SecureField(model.configuredTTSKeySlots.contains(slot) ? "TTS-Schlüssel \(slot + 1) ersetzen" : "TTS-Schlüssel \(slot + 1)", text: $model.ttsKeyInputs[slot])
-                                    .textFieldStyle(.roundedBorder).disabled(model.isWorking)
-                                Button("Speichern") { Task { await model.updateTTSKey(slot: slot) } }
-                                    .disabled(model.isWorking || model.ttsKeyInputs[slot].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                Button("Entfernen") { Task { await model.updateTTSKey(slot: slot, remove: true) } }
-                                    .disabled(model.isWorking || !model.configuredTTSKeySlots.contains(slot))
-                            }
-                        }
-                        Text(model.configuredTTSKeySlots.isEmpty ? "Noch keine separaten TTS-Schlüssel · verwende den ursprünglichen Gemini-Schlüssel." : "\(model.configuredTTSKeySlots.count) separate TTS-Schlüssel · Gemini-Antworten verwenden weiterhin den ursprünglichen Schlüssel.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Text("Schlüssel desselben Google-Projekts teilen ihr Kontingent.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if !model.ttsKeyStatus.isEmpty { Text(model.ttsKeyStatus).font(.caption).foregroundStyle(.secondary) }
-                    }
-                }
-
-                HStack {
-                    Button("Computersteuerung erlauben", systemImage: "keyboard") {
-                        MacToolExecutor.requestComputerControl()
-                    }
-                    Button("Notizen zeigen", systemImage: "folder") {
-                        let directory = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes")
-                        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                        NSWorkspace.shared.open(directory)
-                    }
                     if !model.isReady { Button("Erneut laden") { model.prepare() } }
                 }
-
-                DisclosureGroup("Orbs zuordnen · 9 Animationen", isExpanded: $showsOrbGallery) {
-                    OrbGallery()
+                HStack {
+                    Toggle("Hey Friday", isOn: Binding(get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }))
+                        .toggleStyle(.switch).disabled(!model.isReady || model.isWorking)
+                    Spacer()
+                    if model.isRecording { Button("Aufnahme beenden", systemImage: "stop.fill") { model.stopRecording() } }
+                    else { Button("Sprechen", systemImage: "mic.fill") { model.startRecording() }.disabled(!model.isReady || model.isWorking) }
                 }
-                HomeAssistantSettingsView(settings: model.homeSettings, disabled: model.isWorking)
-                Button("Gesprächskontext löschen") { Task { await model.clearConversation() } }.disabled(model.isWorking)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Gemini API-Schlüssel").font(.headline)
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker("Modus", selection: $model.mode) {
+                        Text("Assistent").tag(InputMode.assistant)
+                        Text("Diktat").tag(InputMode.dictation)
+                    }.pickerStyle(.segmented).disabled(model.isWorking)
+                    TextField("Frag etwas oder gib einen Auftrag …", text: $model.input, axis: .vertical)
+                        .textFieldStyle(.roundedBorder).lineLimit(2...5).onSubmit { model.submit() }
+                        .disabled(model.isWorking)
                     HStack {
-                        SecureField(model.geminiKeyConfigured ? "Neuen Schlüssel eintragen" : "API-Schlüssel eintragen", text: $model.geminiKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                            .disabled(model.isWorking)
-                        Button("Lokal speichern") { Task { await model.saveGeminiKey() } }
-                            .disabled(model.isWorking || model.geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Ausführen", systemImage: "arrow.up") { model.submit() }
+                            .buttonStyle(.borderedProminent).disabled(model.isWorking || !model.isReady || model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if model.isWorking { Button("Abbrechen") { model.cancel() } }
                     }
-                    Text(model.geminiKeyStatus.isEmpty
-                         ? (model.geminiKeyConfigured ? "Schlüssel lokal gespeichert · kein Schlüsselbundzugriff." : "Nur auf diesem Mac gespeichert, außerhalb des Projekts.")
-                         : model.geminiKeyStatus)
-                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !model.response.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(model.projectMatches.isEmpty ? "Antwort" : "Treffer auswählen").font(.headline)
+                        Text(model.response).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        ForEach(model.projectMatches) { match in
+                            Button { model.focusProjectMatch(match.id) } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: match.icon).font(.title3).foregroundStyle(.secondary).frame(width: 24)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(match.title).font(.body.weight(.medium)).lineLimit(2)
+                                        Text(match.detail ?? match.application).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.up.forward").foregroundStyle(.secondary)
+                                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+                            }.buttonStyle(.plain).disabled(model.isWorking).help("Treffer öffnen")
+                        }
+                        if let weather = model.weatherOverview { WeatherOverviewCard(forecast: weather, usesGlass: false) }
+                        ForEach(model.answerSources, id: \.url) { Link($0.title, destination: $0.url).font(.caption) }
+                        if model.canReplayAnswer { Button("Noch einmal vorlesen", systemImage: "speaker.wave.2") { model.replayAnswer() }.disabled(model.isWorking) }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ein Klick auf die Overlay-Kugel startet die Aufnahme.").font(.callout)
+                        Text("„Such den Tab raus, wo ich Friday offen habe“\n„Such Datei Rechnung.pdf und öffne sie“\n„Wie wird das Wetter nächste Woche in Berlin?“")
+                            .font(.callout).foregroundStyle(.secondary).lineSpacing(5)
+                    }
+                }
+                Divider()
+                DisclosureGroup("Gemini-Verbindung & Gespräch") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("API-Schlüssel für Antworten").font(.subheadline.weight(.medium))
+                        HStack {
+                            SecureField(model.geminiKeyConfigured ? "Gespeicherten Schlüssel ersetzen" : "API-Schlüssel", text: $model.geminiKeyInput).textFieldStyle(.roundedBorder)
+                            Button("Speichern") { Task { await model.saveGeminiKey() } }.disabled(model.geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        Text(model.geminiKeyStatus.isEmpty ? "Nur lokal gespeichert · kein Schlüsselbundzugriff." : model.geminiKeyStatus).font(.caption).foregroundStyle(.secondary)
+                        Button("Gesprächskontext löschen") { Task { await model.clearConversation() } }
+                    }.padding(.top, 12).disabled(model.isWorking)
+                }.font(.callout)
+            }.padding(24)
+        }
+    }
+
+    private var computer: some View {
+        Form {
+            Section("Zugriff") {
+                Text("Fenster und Terminal-Tabs brauchen Bedienungshilfen. Safari und Terminal fragen zusätzlich nach Automation, wenn du sie erstmals durchsuchen lässt.").font(.callout).foregroundStyle(.secondary)
+                Button("Computersteuerung erlauben", systemImage: "keyboard") { MacToolExecutor.requestComputerControl() }
+            }
+            Section("Bereits offene Inhalte") {
+                Label("„Such den Safari-Tab mit Seite XY“", systemImage: "safari")
+                Label("„Such den Tab raus, wo ich XY offen habe“", systemImage: "rectangle.on.rectangle")
+                Label("„Wo habe ich Projekt XY offen?“", systemImage: "macwindow")
+                Text("Titel und Adressen zuerst. Bei einer Inhaltssuche liest Friday begrenzt Seitentext bzw. sichtbaren Terminaltext lokal. Mehrere Treffer kannst du auswählen.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Dateien & Ordner") {
+                Label("„Such Datei Rechnung.pdf und öffne sie“", systemImage: "doc")
+                Label("„Such Ordner Friday im Finder“", systemImage: "folder")
+                Text("Suche nach Namen im Spotlight-Index deines Benutzerordners. Pfade bleiben lokal. Skripte und Installationsdateien werden im Finder gezeigt.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Notizen") {
+                Button("Gespeicherte Notizen öffnen", systemImage: "folder") {
+                    let directory = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes")
+                    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    NSWorkspace.shared.open(directory)
                 }
             }
-            .padding(24)
-        }
-        .frame(minWidth: 500, minHeight: 520)
+        }.formStyle(.grouped)
     }
 }

@@ -26,11 +26,13 @@ public struct AssistantResponse: Sendable, Equatable {
     public let text: String
     public let route: ResponseRoute
     public let sources: [AnswerSource]
+    public let weather: WeatherForecast?
 
-    public init(text: String, route: ResponseRoute, sources: [AnswerSource] = []) {
+    public init(text: String, route: ResponseRoute, sources: [AnswerSource] = [], weather: WeatherForecast? = nil) {
         self.text = text
         self.route = route
         self.sources = sources
+        self.weather = weather
     }
 }
 
@@ -70,6 +72,8 @@ public struct HomeAssistantAction: Sendable, Equatable {
     }
 }
 
+public enum LocalItemKind: String, Sendable, CaseIterable { case file, folder }
+
 public enum ToolRequest: Sendable, Equatable {
     case openApplication(bundleIdentifier: String)
     case searchSafari(query: String)
@@ -77,6 +81,7 @@ public enum ToolRequest: Sendable, Equatable {
     case switchDesktop(direction: DesktopDirection)
     case findProject(query: String)
     case findSafariTab(query: String, searchContents: Bool)
+    case findLocalItem(query: String, kind: LocalItemKind)
     case openFolder(MacFolder)
     case openURL(URL)
     case homeAssistant(HomeAssistantAction)
@@ -92,7 +97,7 @@ public enum ToolRequest: Sendable, Equatable {
         case .searchSafari(let query):
             return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && query.count <= 2_000
         case .switchDesktop: return true
-        case .findProject(let query), .findSafariTab(let query, _):
+        case .findProject(let query), .findSafariTab(let query, _), .findLocalItem(let query, _):
             return (2...200).contains(query.trimmingCharacters(in: .whitespacesAndNewlines).count) && query.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.count >= 2
         case .openFolder: return true
         case .openURL(let url):
@@ -166,6 +171,7 @@ public protocol ReasoningEngine: Sendable {
 public enum ReasoningPlan: Sendable, Equatable {
     case answer(String)
     case researchedAnswer(text: String, sources: [AnswerSource])
+    case weatherAnswer(text: String, sources: [AnswerSource], forecast: WeatherForecast)
     case actions([ToolRequest])
 }
 

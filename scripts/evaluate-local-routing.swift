@@ -3,12 +3,19 @@ import Darwin
 import FridayCore
 import FridayAdapters
 
-private struct Case: Decodable { let text: String; let expectedRoute: String }
+private struct Case: Decodable { let text: String; let expectedRoute: String; let expectedTool: String? }
 private struct Result: Encodable {
     let text: String; let route: String; let correct: Bool; let milliseconds: Double
 }
 private struct CaptureTools: ToolExecutor {
-    func execute(_ request: ToolRequest) async throws -> String { "Validiertes Tool aufgezeichnet; kein Gerät/Programm wird bedient." }
+    func execute(_ request: ToolRequest) async throws -> String {
+        switch request {
+        case .findLocalItem: "findLocalItem"
+        case .findSafariTab: "findSafariTab"
+        case .findProject: "findProject"
+        default: "other"
+        }
+    }
 }
 private struct OfflineReasoning: ReasoningEngine {
     func respond(to text: String) async throws -> String { "Fallback aufgezeichnet; keine API-Anfrage." }
@@ -34,7 +41,7 @@ private struct OfflineReasoning: ReasoningEngine {
                 let start = ContinuousClock.now
                 let response = try await router.handle(item.text)
                 let elapsed = start.duration(to: .now).components
-                let correct = response.route.rawValue == item.expectedRoute
+                let correct = response.route.rawValue == item.expectedRoute && (item.expectedTool == nil || item.expectedTool == response.text)
                 if !correct { failures += 1 }
                 let result = Result(text: item.text, route: response.route.rawValue, correct: correct,
                                     milliseconds: Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15)

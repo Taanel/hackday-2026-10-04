@@ -64,6 +64,7 @@ public struct ActionArgumentParser: Sendable {
                   let url = URL(string: address.hasPrefix("www.") ? "https://" + address : address), ToolRequest.openURL(url).hasValidArguments else { return nil }
             return .openURL(url)
         case "find_project":
+            if let lookup = LocalLookupCommandParser.parse(text) { return lookup }
             if let expression = try? NSRegularExpression(pattern: #"^(?:bitte\s+)?(?:finde|such|suche|zeige|zeig)\b.*?\bsafari[\s-]*tab\b.*?\b(?:mit|zu|nach)\s+(?:(?:dem\s+|der\s+)?(inhalt|seite)\s+)?(.+?)(?:\s+(?:offen|raus))?[.!?]*$"#, options: .caseInsensitive),
                let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
                let range = Range(match.range(at: 2), in: text) {
