@@ -41,6 +41,7 @@ extension AudioInput: VoiceAudioInput {}
     private var wakeGeneration = 0
     private var wakeSession = UUID()
     private var wakeTriggered = false
+    private var startingRecording = false
     private var frameContinuation: AsyncStream<[Float]>.Continuation?
     private var feedTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
@@ -196,16 +197,24 @@ extension AudioInput: VoiceAudioInput {}
     func manualRecording() async throws {
         try Task.checkCancellation()
         guard !closed else { throw CancellationError() }
-        await suspend()
+        guard !startingRecording, !audio.isRecording else { return }
+        startingRecording = true
+        defer { startingRecording = false }
+        let token = generation
+        // Start capture before waiting for the worker's final decode/pause ACK.
+        // A click must not lose the first syllables or accept another wake.
+        awaitingWake = false
         do {
             try await audio.start()
             try Task.checkCancellation()
-            guard !closed else { throw CancellationError() }
+            guard !closed, generation == token else { throw CancellationError() }
             wakeTriggered = false
             audio.beginRecording(fromSample: nil)
             onPhase?(.recording)
+            await suspend()
         } catch {
             audio.stop()
+            await suspend()
             throw error
         }
     }

@@ -7,6 +7,8 @@ import FridayAdapters
     #expect(AssistantViewModel.removeWakePrefix("Hey Frida, Wohnzimmer an") == "Wohnzimmer an")
     #expect(AssistantViewModel.removeWakePrefix("Hey Freda!") == "")
     #expect(AssistantViewModel.removeWakePrefix("Hey Friday") == "")
+    #expect(AssistantViewModel.removeWakePrefix("Hi Friday, öffne Safari") == "öffne Safari")
+    #expect(AssistantViewModel.removeWakePrefix("Hi Fidder, öffne Safari") == "öffne Safari")
     #expect(AssistantViewModel.removeWakePrefix("Erkläre mir Friday") == "Erkläre mir Friday")
 }
 @testable import FridayApp

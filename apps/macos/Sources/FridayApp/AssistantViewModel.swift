@@ -240,7 +240,7 @@ import FridayAdapters
                 model.phase = phase
                 model.isRecording = phase == .recording
                 model.isWorking = phase == .recording
-                if phase == .listening { model.status = model.allowBareWake ? "Höre auf „Friday“ oder „Hey Friday“ · lokal" : "Höre ausschließlich auf „Hey Friday“ · lokal" }
+                if phase == .listening { model.status = model.allowBareWake ? "Höre auf „Hey Friday“, „Hi Friday“ oder „Friday“ · lokal" : "Höre auf „Hey Friday“ oder „Hi Friday“ · lokal" }
                 else if phase == .recording {
                     model.clearTranscript()
                     model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme."
@@ -546,7 +546,7 @@ import FridayAdapters
                 guard generation == token, !shuttingDown else { return }
                 isRecording = false; isWorking = false
                 if !wakeEnabled { phase = .idle }
-                status = wakeEnabled ? "Höre auf „Friday“ oder „Hey Friday“ · lokal" : "Abgebrochen"
+                status = wakeEnabled ? "Höre auf „Hey Friday“ oder „Hi Friday“ · lokal" : "Abgebrochen"
                 task = nil
             }
         }
@@ -565,7 +565,7 @@ import FridayAdapters
     }
 
     func startRecording() {
-        guard !shuttingDown, isReady, !isWorking else { return }
+        guard !shuttingDown, isReady, !isWorking, !isRecording else { return }
         isWorking = true
         microphoneTask = Task {
             do { try await voice?.manualRecording() }
@@ -591,7 +591,7 @@ import FridayAdapters
 
     static func removeWakePrefix(_ text: String) -> String {
         // Called only after confirmed audio wake detection. German Whisper may spell Friday as Friede.
-        text.replacingOccurrences(of: #"^\s*(?:(?:hey|hi|hei|he|hej)\s*[,!]?\s*)?(?:friday|frida|freda|friede|freitag|fridey|freidei)\b\s*[,.:;!?-]*\s*"#,
+        text.replacingOccurrences(of: #"^\s*(?:(?:hey|hi|hei|he|hej)\s*[,!]?\s*)?(?:friday|frida|freda|friede|freitag|fridey|freidei|fida|fidder)\b\s*[,.:;!?-]*\s*"#,
                                   with: "", options: [.regularExpression, .caseInsensitive])
     }
 }

@@ -5,7 +5,7 @@ Die Demo-Provider sind ausschließlich für isolierte Tests verfügbar.
 
 ```mermaid
 flowchart TD
-    Wake[Hey Friday: Moonshine; weitere Wake-Varianten optional] --> Capture[Zentrale AudioInput / Ringpuffer]
+    Wake[Hey/Hi Friday: Moonshine; weitere Wake-Varianten optional] --> Capture[Zentrale AudioInput / Ringpuffer]
     Button[Sprechen] --> Capture
     Capture --> Hex[Hex: deutsches WAV zu Text]
     Hex --> Laya[Laya Core ML: Intent und Konfidenz]
@@ -108,6 +108,17 @@ LSUIElement macht das gebündelte Friday zur Menüleisten-App ohne Dock-Icon.
 MenuBarExtra verwendet ein statisches Template-Rendering des gepunkteten Kugel-Orbs.
 Das Einstellungsfenster wird im AppDelegate erst beim Öffnen erzeugt und danach
 wiederverwendet. Beim Start entsteht nur das transparente Overlay.
+Ein normaler Klick auf die Kugel startet manuelle Aufnahme; Einstellungen bleiben
+über die Menüleiste und das Kontextmenü erreichbar. Die Aufnahme startet vor dem
+Wake-Pause-Acknowledgement, mit Generation- und Reentrancy-Guards.
+
+Build 12 lädt Home-Assistant-Raumzuordnungen über die lesenden WebSocket-Registries
+für Bereiche, Geräte und Entities. Eine explizite Entity-Zuordnung überschreibt
+den vom Gerät geerbten Bereich. Raumbefehle wählen einzelne `light`-Entities dieses
+Bereichs und senden eine einzige Service-Anfrage mit deren IDs. Gleichnamige Hue-
+Gruppen ersetzen diese Auswahl nicht. Jede gewählte Lampe muss den Zielzustand
+melden. Ohne Raumkatalog kann eine benannte Teilgruppe nicht still einen Raum
+ersetzen; konkrete Einzelgeräte bleiben steuerbar.
 
 Die Erweiterung v8 nutzt `CachedDecisionEngine` für hohe, gültige lokale Action-
 Entscheidungen. Exact-text keys, 64 Einträge, fünf Minuten, Helper-Epoch-Guards;

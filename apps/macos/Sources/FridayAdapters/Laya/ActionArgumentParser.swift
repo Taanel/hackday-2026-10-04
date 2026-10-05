@@ -92,7 +92,8 @@ public struct ActionArgumentParser: Sendable {
             guard let name = capture(
                 #"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:öffne|oeffne|starte|open|launch)\s+(?:bitte\s+)?(?:(?:das\s+programm|die\s+app|den|die|das)\s+)?(.+?)(?:\s+(?:bitte|für\s+mich))?[.!?]*$"#, text
             ) ?? capture(#"^(?:kannst|könntest)\s+du\s+(?:bitte\s+)?(.+?)(?:\s+für\s+mich)?\s+(?:öffnen|starten)[.!?]*$"#, text)
-              ?? capture(#"^(?:bitte\s+)?(?:mach|mache)\s+(?:bitte\s+)?(.+?)\s+auf[.!?]*$"#, text),
+              ?? capture(#"^(?:bitte\s+)?(?:mach|mache)\s+(?:bitte\s+)?(.+?)\s+auf[.!?]*$"#, text)
+              ?? capture(#"^(?:bitte\s+)?(.+?)\s+(?:öffnen|starten)(?:\s*,?\s+bitte)?[.!?]*$"#, text),
                   let identifier = applicationIdentifier(named: name) else { return nil }
             return .openApplication(bundleIdentifier: identifier)
         case "switch_desktop":

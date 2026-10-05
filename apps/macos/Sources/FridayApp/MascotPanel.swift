@@ -112,10 +112,13 @@ struct FloatingAssistant: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
-            Button(action: open) {
+            Button { model.startRecording() } label: {
                 AssistantOrb(phase: model.phase, size: .px64)
                     .padding(8)
             }.buttonStyle(.plain)
+                .disabled(!model.isReady || model.isWorking || model.isRecording)
+                .help("Klicken und sprechen · Einstellungen per Rechtsklick")
+                .accessibilityLabel("Sprachaufnahme starten")
             if model.isRecording {
                 Button("Stop") { model.stopRecording() }.buttonStyle(.bordered).frame(width: 80)
             }
@@ -125,9 +128,9 @@ struct FloatingAssistant: View {
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .help("Friday öffnen · \(model.phase.label)")
-        .accessibilityLabel("Friday öffnen. \(model.phase.label)")
         .contextMenu {
+            Button("Einstellungen und Antworten öffnen", action: open)
+            Divider()
             Button(model.wakeEnabled ? "Wake ausschalten" : "Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
                 .disabled(!model.isReady || model.isWorking)
             Button("Sprechen") { model.startRecording() }.disabled(!model.isReady || model.isWorking)

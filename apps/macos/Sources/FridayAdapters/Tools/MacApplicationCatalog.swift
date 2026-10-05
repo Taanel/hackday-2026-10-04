@@ -7,7 +7,8 @@ public enum MacApplicationCatalog {
         var matches: [String: Set<String>] = [:]
         func read(_ url: URL) {
             guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier,
-                  bundle.infoDictionary?["CFBundlePackageType"] as? String == "APPL" else { return }
+                  let type = bundle.infoDictionary?["CFBundlePackageType"] as? String,
+                  ["APPL", "FNDR"].contains(type) else { return }
             let names = [url.deletingPathExtension().lastPathComponent,
                          bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
                          bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String].compactMap { $0 }

@@ -10,12 +10,58 @@ import FridayAdapters
     var onError: ((any Error) -> Void)?
     var isRecording = false
     var totalSamples = 0
+    var recordings = 0
+    var lastStartSample: Int?
+    var finishedFile: URL?
     func start() async throws {}
     func stop() { isRecording = false }
-    func beginRecording(fromSample: Int?) { isRecording = true }
-    func finishRecording() throws -> URL? { isRecording = false; return nil }
+    func beginRecording(fromSample: Int?) { isRecording = true; recordings += 1; lastStartSample = fromSample }
+    func finishRecording() throws -> URL? { isRecording = false; return finishedFile }
     func cancelRecording() { isRecording = false }
     func emit() { totalSamples += 1600; onFrames?(Array(repeating: 0, count: 1600)) }
+}
+
+@Test @MainActor func manualCaptureWorksWithoutWakeAndKeepsTheEntireCommand() async throws {
+    let audio = MicrophoneStub()
+    audio.finishedFile = URL(fileURLWithPath: "/tmp/friday-test-command.wav")
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker:
+        JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio)
+    var delivered: URL?, stripsWake: Bool?
+    voice.onCommand = { delivered = $0; stripsWake = $1 }
+    try await voice.manualRecording()
+    #expect(audio.isRecording)
+    #expect(audio.lastStartSample == nil)
+    try voice.finishRecording()
+    #expect(delivered == audio.finishedFile)
+    #expect(stripsWake == false)
+    await voice.shutdown()
+}
+
+@Test @MainActor func manualCaptureStartsBeforeWakePauseAcknowledgement() async throws {
+    let code = #"""
+import sys,json,time
+generation=0
+print(json.dumps({'type':'ready'}),flush=True)
+for line in sys.stdin:
+ r=json.loads(line)
+ if r['op']=='resume': generation+=1
+ if r['op']=='pause': time.sleep(0.25)
+ if 'id' in r: print(json.dumps({'id':r['id'],'generation':generation}),flush=True)
+"""#
+    let audio = MicrophoneStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker:
+        JSONLineProcess(executable: "/usr/bin/python3", arguments: ["-u", "-c", code])), audio: audio)
+    try await voice.setEnabled(true)
+    let capture = Task { try await voice.manualRecording() }
+    try await Task.sleep(for: .milliseconds(60))
+    #expect(audio.isRecording)
+    #expect(audio.recordings == 1)
+    try await voice.manualRecording() // Repeated clicks must not reset the recording.
+    try await capture.value
+    #expect(audio.recordings == 1)
+    await voice.cancel()
+    #expect(!audio.isRecording)
+    await voice.shutdown()
 }
 
 @Test @MainActor func wakeFailureRecoversAndStillAcceptsTheNextWake() async throws {

@@ -19,7 +19,7 @@ struct AssistantView: View {
                         .scaleEffect(0.625).frame(width: 40, height: 40)
                 }
 
-                Text("Sag „Hey Friday, öffne Safari“ oder „Hey Friday, erklär mir einen Quantencomputer“.")
+                Text("Sag „Hey Friday“ oder „Hi Friday“ und deinen Auftrag. Oder klicke zum Sprechen auf die Overlay-Kugel.")
                     .font(.callout).foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {

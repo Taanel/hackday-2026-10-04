@@ -103,12 +103,29 @@ func safariSearchCommandsUseADirectAction(text: String) {
     #expect(request == .searchSafari(query: "test"))
 }
 
-@Test func installedAppNamesNeedNoManualConfiguration() throws {
+@Test(arguments: ["Öffne Safari", "Kannst du bitte Safari öffnen?", "Mach Safari auf", "Safari öffnen, bitte"])
+func colloquialAppCommandsStillRequireALayaDecision(text: String) async throws {
+    let code = #"""
+import sys,json
+print(json.dumps({'type':'ready'}),flush=True)
+for line in sys.stdin:
+ r=json.loads(line)
+ matches=r['text']=='\u00d6ffne die installierte App com.apple.Safari auf diesem Mac.'
+ print(json.dumps({'id':r['id'],'intent':'open_app' if matches else 'unknown','confidence':0.99 if matches else 0.0,'truncated':False,'error':None if matches else ascii(r['text'])}),flush=True)
+"""#
+    let worker = JSONLineProcess(executable: "/usr/bin/python3", arguments: ["-u", "-c", code])
+    let decision = try await LayaDecisionEngine(worker: worker).decide(text: text)
+    await worker.stop()
+    guard case .action(let request) = decision.intent else { Issue.record("Laya hat den App-Start nicht bestätigt"); return }
+    #expect(request == .openApplication(bundleIdentifier: "com.apple.Safari"))
+}
+
+@Test(arguments: ["APPL", "FNDR"]) func installedAppNamesNeedNoManualConfiguration(packageType: String) throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let contents = root.appendingPathComponent(".Beliebige Neue App.app/Contents")
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-    let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "example.new.application", "CFBundleName": "Beliebige Neue App", "CFBundlePackageType": "APPL"], format: .xml, options: 0)
+    let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "example.new.application", "CFBundleName": "Beliebige Neue App", "CFBundlePackageType": packageType], format: .xml, options: 0)
     try plist.write(to: contents.appendingPathComponent("Info.plist"))
     let parser = ActionArgumentParser(applications: MacApplicationCatalog.aliases(in: [root]))
     #expect(parser.parse(intent: "open_app", text: "Öffne Beliebige Neue App") == .openApplication(bundleIdentifier: "example.new.application"))

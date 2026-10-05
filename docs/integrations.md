@@ -15,29 +15,31 @@ HexService startet das originale ARM64-Release 2.1.24 mit `service --embedded`,
 prüft API 2 und verwendet den lokalen Bearer-authentifizierten HTTP-Service.
 Das Setup installiert Whisper large-v3-turbo für Deutsch; Runtime-Downloads sind aus.
 
-## „Friday“ / „Hey Friday“
+## „Hey Friday“ / „Hi Friday“ / optional „Friday“
 
 Optionales lokales Anlernen: dreimal die Phrase aufnehmen. Der Worker speichert
 normalisierte spektrale Merkmale in `~/Library/Application Support/Friday/VoiceProfile/profile.json`.
 Temporäre WAVs werden anschließend gelöscht. Subsequence-DTW sucht das Klangmuster
 in rollierenden PCM-Fenstern; Lautstärke und Sprechtempo dürfen sich ändern.
 Das ist eine Testfunktion, keine Sprecheridentifikation. Das persönliche Profil
-ist nur nach ausdrücklichem Opt-in aktiv. Standardmäßig löst ausschließlich „Hey Friday“ am Anfang einer Äußerung aus; „Friday“ allein ist separat optional.
+ist nur nach ausdrücklichem Opt-in aktiv. Standardmäßig lösen „Hey Friday“ und „Hi Friday“ am Anfang einer Äußerung aus; „Friday“ allein ist separat optional.
 „Zurücksetzen“ entfernt nur das persönliche Profil.
 
 Moonshine Small Streaming Deutsch (123M) verarbeitet kontinuierlich lokale AudioInput-Samples
-und meldet standardmäßig nur die vollständige Phrase „Hey Friday“ am Beginn
+und meldet standardmäßig die vollständigen Phrasen „Hey Friday“ und „Hi Friday“ am Beginn
 einer Äußerung. „Friday“ allein erfordert das separate Opt-in. Die deutschen offenen
 Small-Gewichte werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der
 nativen App. Die Schlüsselphrase wird dem Modell mitgegeben. Feste ASR-Schreibvarianten
-wie „Hey Freidei“ werden ebenfalls erkannt; „hey“ als erstes Wort bleibt erforderlich.
+wie „Hey Freidei“ und die in deutschen Sprachproben beobachteten „Hi Fida/Fidder“ werden ebenfalls erkannt; „hey“ oder „hi“ als erstes Wort bleibt erforderlich.
 Das Setup verwendet `SMALL_STREAMING` und Revision `quantized_26_08_24`.
 Die alte Tiny-Konfiguration bleibt über `wakeArchitecture` kompatibel.
 Ruhepegel-basierte Sprachgrenzen verhindern den vorzeitigen Abschluss leiser Befehle.
 Eine Wake-Phrase ohne Befehl öffnet eine Aufnahme mit acht Sekunden Sprachbeginn-Timeout.
 Die Mikrofon-Diagnose zeigt einen begrenzten Text im aktiven Einstellungsfenster;
 sie aktiviert keinen Befehl und speichert weder Audio noch Transkripte auf Disk.
-Abnahme: „Hey Friday“ aktiviert den Assistenten; „Friday“ allein, Stille und
+Ein Overlay-Klick startet dieselbe native Aufnahme, benötigt aber keinen Wake-Worker.
+Die Aufnahme beginnt vor dem Pause-Acknowledgement; doppelte Klicks starten sie nicht neu.
+Abnahme: „Hey Friday“ oder „Hi Friday“ aktiviert den Assistenten; „Friday“ allein, Stille und
 Erwähnungen mitten in einem Satz lösen in der Standardeinstellung nicht aus;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
 Wake-Fehler starten nur den Wake-Helper neu. Transport-Sitzung und Stream-Generation
@@ -171,6 +173,17 @@ vorherigen Wert nicht wiederherstellen. Speichern prüft das Format, keine API-
 Autorisierung. Fehlende oder von Google abgelehnte Schlüssel erzeugen klare Fehler.
 
 ## Home Assistant v8
+
+Erweiterung Build 12: Raumzuordnungen werden über `config/area_registry/list`,
+`config/device_registry/list` und `config/entity_registry/list` gelesen. Der
+normale Friday-Benutzer der realen Instanz hat Zugriff; `api/template` wäre dort
+nicht erlaubt und wird deshalb nicht verwendet. Geräte vererben ihren Bereich an
+Entities, explizite Entity-Zuordnungen haben Vorrang. „Wohnzimmer aus“ adressiert
+alle individuellen Lampen des Bereichs in einer Service-Anfrage und prüft jede
+einzeln. Die Hue-Gruppe „Wohnzimmer“ enthält lediglich zwei der 13 tatsächlichen
+Lampen; Kaskade und Albedo werden nun zusätzlich einbezogen. Eine konkrete
+Lampe bzw. Entity-ID wird weiterhin gezielt gesteuert. Der native Live-Test meldete
+13/13 Lampen aus; der Nutzer bestätigte anschließend, dass Kaskade und Albedo tatsächlich aus sind.
 
 `HomeAssistantConfigurationStore` speichert origin-gebundene private URL/Token-Daten.
 `HomeAssistantClient` entdeckt light/switch/scene/climate über `/api/states`, prüft

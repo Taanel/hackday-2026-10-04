@@ -31,6 +31,11 @@ public struct LayaDecisionEngine: FastDecisionEngine {
             modelInput = "Bitte führe eine Websuche in Safari nach dem Suchbegriff \(query) aus."
         } else if case .switchDesktop(let direction) = parser.parse(intent: "switch_desktop", text: text) {
             modelInput = "Wechsle den macOS-Schreibtisch nach \(direction == .left ? "links" : "rechts")."
+        } else if case .openApplication(let identifier) = parser.parse(intent: "open_app", text: text) {
+            modelInput = "Öffne die installierte App \(identifier) auf diesem Mac."
+        } else if case .createNote = parser.parse(intent: "create_note", text: text) {
+            // Classify the requested operation, not the contents of the note.
+            modelInput = "Speichere den diktierten Text als neue Notiz auf diesem Mac."
         } else { modelInput = text }
         let data = try JSONEncoder().encode(Request(id: id, text: modelInput))
         let reply = try JSONDecoder().decode(Reply.self, from: await worker.request(data, id: id))

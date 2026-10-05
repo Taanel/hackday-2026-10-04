@@ -24,8 +24,8 @@ def has_wake_prefix(text: str, *, allow_bare: bool = False) -> bool:
     words = re.findall(r"[^\W_]+", normalized)
     # Fixed spellings observed in German ASR for the spoken English name.
     # Still require the complete two-word prefix; no substring/fuzzy match.
-    names = {"friday", "frida", "freda", "freidei", "fridey", "freitag"}
-    return (len(words) >= 2 and words[0] == "hey" and words[1] in names) or (allow_bare and words[:1] == ["friday"])
+    names = {"friday", "frida", "freda", "freidei", "fridey", "freitag", "fida", "fidder"}
+    return (len(words) >= 2 and words[0] in {"hey", "hi"} and words[1] in names) or (allow_bare and words[:1] == ["friday"])
 
 
 def _listener(worker, generation: int, base: type):
@@ -156,7 +156,7 @@ def _create_transcriber(path: str, *, architecture: str = "tiny"):
 
     arch = ModelArch.SMALL_STREAMING if architecture == "small" else ModelArch.TINY_STREAMING
     return Transcriber(model_path=path, model_arch=arch,
-                       options={"keyterms": "Hey Friday", "keyterm_boost": "2.0", "vad_threshold": "0.35", "return_audio_data": "false"}), TranscriptEventListener
+                       options={"keyterms": "Hey Friday,Hi Friday", "keyterm_boost": "2.0", "vad_threshold": "0.35", "return_audio_data": "false"}), TranscriptEventListener
 
 
 def run_wake(model_dir: Path, source: InputStream, emit: Emitter, *, create: Callable | None = None, profile_path: Path | None = None, architecture: str = "tiny") -> None:

@@ -1,7 +1,7 @@
 # Friday — lokaler Assistent für macOS
 
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
-„Hey Friday“ (weitere Wake-Varianten optional), deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
+„Hey Friday“ oder „Hi Friday“ (weitere Wake-Varianten optional), deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
 optional mit Gemini-TTS auf Deutsch vorgelesen werden; Piper ist der lokale Ersatz. Friday startet als Menüleisten-App
 mit transparentem Overlay, ohne Dock-Icon oder automatisch geöffnetes Fenster.
@@ -60,7 +60,7 @@ Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
 2. „Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
-   Das Setup verwendet jetzt Moonshine Small Streaming Deutsch mit „Hey Friday“ als Schlüsselphrase.
+   Das Setup verwendet Moonshine Small Streaming Deutsch mit „Hey Friday“ und „Hi Friday“ als Schlüsselphrasen.
    Unter „Mikrofon und Wake-Erkennung prüfen“ sind Pegel und der zuletzt erkannte
    Text sichtbar, solange das Einstellungsfenster aktiv ist; diese Diagnose wird nicht gespeichert.
    Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
@@ -77,7 +77,9 @@ Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
    Schreibweise. Leerzeichen und eindeutige kleine Schreibfehler in App-Namen sind erlaubt.
 5. „Hey Friday, mach eine Notiz: Milch kaufen“ probieren. „Notizen zeigen“ öffnet den Ordner.
 
-Alternativ „Sprechen“ drücken oder einen Befehl als Text eingeben. „Abbrechen“
+Alternativ die Overlay-Kugel anklicken und sofort sprechen — auch bei ausgeschaltetem Wake.
+Während der Aufnahme bleibt die Stop-Taste darunter erreichbar; erneute Klicks setzen die Aufnahme nicht zurück.
+Oder „Sprechen“ drücken bzw. einen Befehl als Text eingeben. „Abbrechen“
 stoppt die laufende Verarbeitung; das Overlay hat während der Aufnahme eine Stop-Taste.
 Wake ist standardmäßig aus und pausiert während Aufnahme, Verarbeitung und TTS.
 Im Idle und bei Wake-Bereitschaft bleibt der Orb als Ring stehen, ohne Beschriftung.
@@ -115,8 +117,8 @@ Gesprächskontext bleibt im Arbeitsspeicher für Antworten wie „Berlin“ erha
 Suchdaten können keine zusätzlichen Computeraktionen auslösen. Googles integrierte
 Suche ist bei diesem kostenlosen Schlüssel nicht verfügbar und wird nicht verwendet.
 
-Die Kugel in der Menüleiste öffnet das Friday-Menü; „Friday öffnen“ oder ein Klick
-auf die Overlay-Kugel öffnet Einstellungen und Antworten. Schließen dieses Fensters
+Die Kugel in der Menüleiste öffnet das Friday-Menü. „Friday öffnen“ oder Rechtsklick
+auf die Overlay-Kugel → „Einstellungen und Antworten öffnen“ öffnet das Fenster. Ein normaler Overlay-Klick startet die Aufnahme. Schließen dieses Fensters
 beendet Friday nicht. „Beenden“ im Menü beendet auch die Mikrofon-Helper.
 
 Unter „Orbs zuordnen · 9 Animationen“ einen Zustand wählen und auf die gewünschte
@@ -153,7 +155,7 @@ App-Starts und Notizen bleiben stumm.
 
 | Funktion | Erste Version |
 | --- | --- |
-| Wake | Moonshine Small Streaming Deutsch (123M) für Hey Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
+| Wake | Moonshine Small Streaming Deutsch (123M) für Hey/Hi Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
@@ -227,10 +229,17 @@ kein Steuerungsauftrag automatisch wiederholt. Eindeutig benannte Lichtgruppen
 haben bei Raumbefehlen Vorrang vor einzelnen Lampen; Räume und IDs werden aus dem
 Gerätekatalog ermittelt. Laya klassifiziert auch die kurzen Befehle lokal.
 Nach genau einem Steuerungsauftrag liest Friday den Zustand erneut aus Home Assistant.
-Bei Lichtgruppen müssen auch die gelisteten Mitglieder den Zielzustand melden.
-Die Erfolgsanzeige bestätigt diesen gemeldeten Zustand. Bleibt die Bestätigung
-aus, erscheint ein Fehler ohne erneuten Steuerungsauftrag. Der reale Wohnzimmer-
-Test schaltete Gruppe und beide Lampen ein; der Nutzer bestätigte das Licht.
+Raumbefehle verwenden seit Build 12 die echten Home-Assistant-Bereiche, einschließlich
+der vom Gerät geerbten Raumzuordnung. „Wohnzimmer aus“ steuert alle individuellen
+Lampen dieses Raums; eine gleichnamige Hue-Gruppe kann nur einen Teil enthalten.
+Kaskade und Albedo gehören daher ebenfalls dazu. Einzelne Gerätenamen bleiben
+gezielte Aktionen. Der Raumkatalog wird lokal über drei lesende WebSocket-Abfragen
+geladen und zusammen mit der Geräteliste 60 Sekunden gecacht. Kein Admin-Token nötig.
+Die Prüfung umfasst jede ausgewählte Lampe; eine verbliebene eingeschaltete Lampe
+verhindert die Erfolgsmeldung. Kein erneuter Steuerungsauftrag bei fehlender Bestätigung.
+Der native Test für „Wohnzimmer aus“ meldete alle 13 individuellen Lampen als aus.
+Der Nutzer bestätigte anschließend auch Kaskade und Albedo als tatsächlich aus.
+Die Anzeige beschreibt den von Home Assistant gemeldeten Zustand.
 
 Zusätzliche Mac-Befehle: „Öffne Downloads“, „Öffne Dokumente“, „Öffne Schreibtisch“,
 „Öffne https://example.com“. Webseiten müssen ausdrücklich als HTTP(S)-Adresse
@@ -249,6 +258,13 @@ Bei längeren Denkpausen deaktivieren. Validierte sichere Entscheidungen werden
 für identische Befehle fünf Minuten im Arbeitsspeicher gecacht (maximal 64);
 Werkzeugausführung, Geräteauflösung und Argumentprüfung bleiben bei jedem Aufruf.
 Keine Antwort-/Ergebnis-Caches und keine Speicherung dieser Befehle auf Disk.
+Build 12 normalisiert auch validierte App-Starts und Notizen vor der Laya-Entscheidung.
+„Mach Safari auf“ und „Safari öffnen, bitte“ bleiben dadurch lokal; Finder wird mit
+Apples Bundle-Typ `FNDR` ebenfalls entdeckt. Argumente stammen weiterhin aus dem
+ursprünglichen Befehl und dem installierten App-Katalog. Der lokale Router wurde auf
+diesem M1 Pro mit 17 Befehlen geprüft: 17 richtige Routen, etwa 150–170 ms je Entscheidung.
+`./scripts/evaluate-local-routing.sh` wiederholt diese Prüfung mit vorhandenen Modellen,
+ohne Computer-/HA-Aktionen oder Cloud-Aufrufe. [Laya-Optimierung und Fine-Tuning](docs/laya-optimization.md).
 
 Aktive Orb-Animationen laufen höchstens mit 24 fps. In der Galerie animiert nur
 die gewählte Vorschau; bei inaktivem Einstellungsfenster pausieren alle Fenster-

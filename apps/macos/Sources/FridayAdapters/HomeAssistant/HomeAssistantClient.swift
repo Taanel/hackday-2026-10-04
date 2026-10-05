@@ -25,18 +25,24 @@ public struct HomeAssistantEntity: Decodable, Sendable, Identifiable {
 public actor HomeAssistantClient {
     private let store: HomeAssistantConfigurationStore
     private let session: URLSession
+    private let discoverAreas: @Sendable (HomeAssistantConfiguration) async throws -> [HomeAssistantArea]
     private var configuration: HomeAssistantConfiguration?
     private var revision = UUID()
     private var entities: [HomeAssistantEntity] = []
+    private var areas: [HomeAssistantArea] = []
+    private var areaCatalogAvailable = false
     private var expires = ContinuousClock.Instant.now
     private var temperatureUnit: String?
 
-    public init(store: HomeAssistantConfigurationStore = .init(), session: URLSession? = nil) {
+    public init(store: HomeAssistantConfigurationStore = .init(), session: URLSession? = nil,
+                areaDiscovery: (@Sendable (HomeAssistantConfiguration) async throws -> [HomeAssistantArea])? = nil) {
         self.store = store
-        self.session = session ?? URLSession(configuration: .ephemeral, delegate: NoCredentialRedirects(), delegateQueue: nil)
+        let connection = session ?? URLSession(configuration: .ephemeral, delegate: NoCredentialRedirects(), delegateQueue: nil)
+        self.session = connection
+        self.discoverAreas = areaDiscovery ?? { try await HomeAssistantAreas.load($0, session: connection) }
     }
     public func invalidate() {
-        revision = UUID(); configuration = nil; entities = []; temperatureUnit = nil; expires = .now
+        revision = UUID(); configuration = nil; entities = []; areas = []; areaCatalogAvailable = false; temperatureUnit = nil; expires = .now
     }
     public func refresh() async throws -> [HomeAssistantEntity] {
         try Task.checkCancellation()
@@ -51,10 +57,15 @@ public actor HomeAssistantClient {
         let configData = try await fetch(path: "api/config", configuration: current)
         struct ServerInfo: Decodable { struct Units: Decodable { let temperature: String }; let unit_system: Units }
         let unit = try? JSONDecoder().decode(ServerInfo.self, from: configData).unit_system.temperature
+        let rooms: [HomeAssistantArea]
+        let roomsAvailable: Bool
+        do { rooms = try await discoverAreas(current); roomsAvailable = true }
+        catch is CancellationError { throw CancellationError() }
+        catch { rooms = []; roomsAvailable = false }
         try Task.checkCancellation()
         guard generation == revision else { throw CancellationError() }
         let supported = decoded.filter { ["light", "switch", "scene", "climate"].contains($0.domain) && $0.entity_id.range(of: #"^[a-z_]+\.[a-z0-9_]+$"#, options: .regularExpression) != nil }
-        entities = Array(supported.prefix(2000)); temperatureUnit = unit; expires = .now.advanced(by: .seconds(60))
+        entities = Array(supported.prefix(2000)); areas = rooms; areaCatalogAvailable = roomsAvailable; temperatureUnit = unit; expires = .now.advanced(by: .seconds(60))
         return entities
     }
     public func execute(_ action: HomeAssistantAction) async throws -> String {
@@ -62,17 +73,25 @@ public actor HomeAssistantClient {
         if entities.isEmpty || expires <= .now { _ = try await refresh() }
         try Task.checkCancellation()
         let current = try config(), generation = revision
-        let entity = try Self.resolve(action, in: entities)
-        guard entity.state != "unavailable", entity.state != "unknown" || entity.domain == "scene" else { throw AdapterError.unavailable("Das gewählte Home-Assistant-Gerät ist nicht verfügbar.") }
-        var body: [String: Any] = ["entity_id": entity.entity_id]
+        let room = try Self.roomLights(action, areas: areas, entities: entities)
+        let targets = try room?.entities ?? [Self.resolve(action, in: entities)]
+        let entity = targets[0]
+        let name = room?.name ?? entity.name
+        if !areaCatalogAvailable, action.target != entity.id, !(entity.attributes.entity_id ?? []).isEmpty {
+            throw AdapterError.unavailable("Raumzuordnung nicht abrufbar. Diese Lichtgruppe kann nur einen Teil des Raums enthalten. Bitte Home Assistant aktualisieren oder eine konkrete Lampe nennen.")
+        }
+        guard targets.allSatisfy({ $0.state != "unavailable" && ($0.state != "unknown" || $0.domain == "scene") }) else { throw AdapterError.unavailable("Mindestens eines der gewählten Home-Assistant-Geräte ist nicht verfügbar.") }
+        var body: [String: Any] = ["entity_id": room == nil ? entity.entity_id as Any : targets.map(\.entity_id) as Any]
         let service: String
         switch action.operation {
         case .turnOn: service = "turn_on"
         case .turnOff: service = "turn_off"
         case .activateScene: service = "turn_on"
         case .brightness:
-            guard let modes = entity.attributes.supported_color_modes, modes.contains(where: { ["brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"].contains($0) }) else {
-                throw AdapterError.unavailable("Dieses Licht unterstützt keine erkannte Helligkeitsregelung.")
+            guard targets.allSatisfy({ target in
+                target.attributes.supported_color_modes?.contains(where: { ["brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"].contains($0) }) == true
+            }) else {
+                throw AdapterError.unavailable("Nicht alle gewählten Lampen unterstützen Helligkeitsregelung. Bitte eine einzelne dimmbare Lampe nennen.")
             }
             service = "turn_on"; body["brightness_pct"] = action.value!
         case .temperature:
@@ -91,9 +110,9 @@ public actor HomeAssistantClient {
         _ = try await fetch(path: "api/services/\(entity.domain)/\(service)", configuration: current, body: body)
         try Task.checkCancellation()
         guard generation == revision else { throw AdapterError.unavailable("Auftrag an die vorherige Serverkonfiguration gesendet. Keine automatische Wiederholung.") }
-        return try await confirm(action, entity: entity, configuration: current, generation: generation)
+        return try await confirm(action, targets: targets, name: name, configuration: current, generation: generation)
     }
-    private func confirm(_ action: HomeAssistantAction, entity: HomeAssistantEntity,
+    private func confirm(_ action: HomeAssistantAction, targets: [HomeAssistantEntity], name: String,
                          configuration: HomeAssistantConfiguration, generation: UUID) async throws -> String {
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
         for attempt in 0..<7 {
@@ -106,20 +125,21 @@ public actor HomeAssistantClient {
             catch is CancellationError { throw CancellationError() }
             catch { throw AdapterError.unavailable("Auftrag gesendet, aber der Gerätezustand konnte nicht geprüft werden. Keine automatische Wiederholung.") }
             guard generation == revision else { throw CancellationError() }
-            guard let observed = try? JSONDecoder().decode([HomeAssistantEntity].self, from: data),
-                  let target = observed.first(where: { $0.id == entity.id }) else { break }
-            let matches: Bool
-            switch action.operation {
+            guard let observed = try? JSONDecoder().decode([HomeAssistantEntity].self, from: data) else { break }
+            let matches = targets.allSatisfy { entity in
+                guard let target = observed.first(where: { $0.id == entity.id }) else { return false }
+                switch action.operation {
             case .turnOn, .turnOff:
                 let state = action.operation == .turnOn ? "on" : "off"
                 let members = entity.attributes.entity_id ?? []
-                matches = target.state == state && members.allSatisfy { id in observed.first(where: { $0.id == id })?.state == state }
+                return target.state == state && members.allSatisfy { id in observed.first(where: { $0.id == id })?.state == state }
             case .brightness:
-                matches = action.value == 0 ? target.state == "off" : target.state == "on" && target.attributes.brightness.map { abs($0 * 100 / 255 - action.value!) <= 1.5 } == true
+                return action.value == 0 ? target.state == "off" : target.state == "on" && target.attributes.brightness.map { abs($0 * 100 / 255 - action.value!) <= 1.5 } == true
             case .temperature:
-                matches = target.attributes.temperature.map { abs($0 - action.value!) < 0.05 } == true
+                return target.attributes.temperature.map { abs($0 - action.value!) < 0.05 } == true
             case .activateScene:
-                matches = target.state != entity.state && target.state != "unknown" && target.state != "unavailable"
+                return target.state != entity.state && target.state != "unknown" && target.state != "unavailable"
+                }
             }
             if matches {
                 // Refresh cached observations without claiming physical feedback beyond HA.
@@ -132,10 +152,35 @@ public actor HomeAssistantClient {
                 case .temperature: result = "auf \(action.value!.formatted()) Grad"
                 case .activateScene: result = "aktiviert"
                 }
-                return "Home Assistant bestätigt: „\(entity.name)“ \(result)."
+                let members = targets[0].attributes.entity_id ?? []
+                let count = targets.count > 1 ? " · \(targets.count) Lampen geprüft" : members.isEmpty ? "" : " · \(members.count) Gruppenmitglieder geprüft"
+                return "Home Assistant meldet: „\(name)“ \(result)\(count)."
             }
         }
-        throw AdapterError.unavailable("Auftrag für „\(entity.name)“ gesendet, aber Home Assistant bestätigt den gewünschten Zustand noch nicht. Keine automatische Wiederholung.")
+        throw AdapterError.unavailable("Auftrag für „\(name)“ gesendet, aber Home Assistant bestätigt den gewünschten Zustand noch nicht für alle gewählten Geräte. Keine automatische Wiederholung.")
+    }
+
+    static func roomLights(_ action: HomeAssistantAction, areas: [HomeAssistantArea], entities: [HomeAssistantEntity]) throws -> (name: String, entities: [HomeAssistantEntity])? {
+        guard [.turnOn, .turnOff, .brightness].contains(action.operation), !action.target.contains(".") else { return nil }
+        let words = targetWords(action.target).subtracting(["licht"])
+        let matches = areas.filter { targetWords($0.name) == words }
+        guard !matches.isEmpty else { return nil }
+        guard matches.count == 1 else { throw AdapterError.unavailable("Mehrere Räume heißen so. Bitte den eindeutigen Raumnamen nennen.") }
+        let area = matches[0]
+        // A Hue group named like the room can omit other Hue groups, plugs or
+        // bridges. Address the area's individual lights once, excluding groups.
+        let lights = entities.filter { $0.domain == "light" && area.entityIDs.contains($0.id) && ($0.attributes.entity_id ?? []).isEmpty }
+        // Empty/stale areas may share a name with a still-valid explicit group.
+        guard !lights.isEmpty else { return nil }
+        return (area.name, lights.sorted { $0.id < $1.id })
+    }
+
+    private static func targetWords(_ value: String) -> Set<String> {
+        let filtered = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "de_DE"))
+            .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        let ignored = Set(["das", "die", "der", "den", "im", "in", "am", "raum", "zimmer", "bitte", "alle", "allen"])
+        let replacements = ["lampe":"licht", "lampen":"licht", "lichter":"licht", "beleuchtung":"licht", "light":"licht", "steckdose":"switch", "heizung":"climate", "thermostat":"climate"]
+        return Set(filtered.filter { !ignored.contains($0) }.map { replacements[$0] ?? $0 })
     }
     private func config() throws -> HomeAssistantConfiguration {
         if let configuration { return configuration }
@@ -153,13 +198,7 @@ public actor HomeAssistantClient {
         let exact = pool.filter { MacApplicationCatalog.normalize($0.name) == MacApplicationCatalog.normalize(action.target) || $0.entity_id == action.target }
         if exact.count == 1 { return exact[0] }
         if exact.count > 1 { throw AdapterError.unavailable("Mehrere Geräte heißen so. Bitte die eindeutige Entity-ID nennen.") }
-        func words(_ value: String) -> Set<String> {
-            let filtered = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "de_DE"))
-                .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
-            let ignored = Set(["das", "die", "der", "den", "im", "in", "am", "raum", "zimmer", "bitte", "alle", "allen"])
-            let replacements = ["lampe":"licht", "lampen":"licht", "lichter":"licht", "beleuchtung":"licht", "light":"licht", "steckdose":"switch", "heizung":"climate", "thermostat":"climate"]
-            return Set(filtered.filter { !ignored.contains($0) }.map { replacements[$0] ?? $0 })
-        }
+        let words = targetWords
         let needle = words(action.target)
         guard !needle.isEmpty else { throw AdapterError.unavailable("Bitte einen konkreten Gerätenamen nennen.") }
         // A named room group takes precedence over its member bulbs. Names and

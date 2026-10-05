@@ -1,0 +1,17 @@
+{"text":"Öffne Safari","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"öffne safari.","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Kannst du bitte Safari öffnen?","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Mach Safari auf","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Safari öffnen, bitte","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Öffne Terminal","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Öffne Finder","expectedRoute":"fastAction","intent":"open_app"}
+{"text":"Wohnzimmer aus","expectedRoute":"fastAction","intent":"home_control"}
+{"text":"Schalte alle Lampen im Wohnzimmer aus","expectedRoute":"fastAction","intent":"home_control"}
+{"text":"Albedo aus","expectedRoute":"fastAction","intent":"home_control"}
+{"text":"Kaskade an","expectedRoute":"fastAction","intent":"home_control"}
+{"text":"Öffne Safari und suche nach Test","expectedRoute":"fastAction","intent":"search_web"}
+{"text":"Notiz: Ich muss recherchieren, wie das Wetter wird","expectedRoute":"fastAction","intent":"create_note"}
+{"text":"Erkläre mir, wie ich Safari öffne","expectedRoute":"reasoning","intent":"reasoning"}
+{"text":"Was ist Home Assistant?","expectedRoute":"reasoning","intent":"reasoning"}
+{"text":"Ist das Wohnzimmer aus?","expectedRoute":"reasoning","intent":"reasoning"}
+{"text":"Öffne Safari und lösche alle Dateien","expectedRoute":"reasoning","intent":"unknown"}
