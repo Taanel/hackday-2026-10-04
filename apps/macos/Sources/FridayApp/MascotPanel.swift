@@ -32,7 +32,7 @@ struct MascotImage: View {
     }
 }
 
-@MainActor final class FridayAppDelegate: NSObject, NSApplicationDelegate {
+@MainActor final class FridayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = AssistantViewModel.live()
     private var assistantWindow: NSWindow?
     private var mascotPanel: NSPanel?
@@ -86,6 +86,7 @@ struct MascotImage: View {
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
             window.title = "Friday"
+            window.delegate = self
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: AssistantView(model: model))
             window.minSize = NSSize(width: 500, height: 520)
@@ -95,6 +96,9 @@ struct MascotImage: View {
         NSApp.activate(ignoringOtherApps: true)
         assistantWindow?.makeKeyAndOrderFront(nil)
     }
+    func windowDidBecomeKey(_ notification: Notification) { OrbWindowActivity.shared.active = true }
+    func windowDidResignKey(_ notification: Notification) { OrbWindowActivity.shared.active = false }
+    func windowWillClose(_ notification: Notification) { OrbWindowActivity.shared.active = false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { await model.shutdown(); sender.reply(toApplicationShouldTerminate: true) }
@@ -124,7 +128,7 @@ struct FloatingAssistant: View {
         .help("Friday öffnen · \(model.phase.label)")
         .accessibilityLabel("Friday öffnen. \(model.phase.label)")
         .contextMenu {
-            Button(model.wakeEnabled ? "Wake ausschalten" : "Friday / Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
+            Button(model.wakeEnabled ? "Wake ausschalten" : "Hey Friday aktivieren") { model.setWakeEnabled(!model.wakeEnabled) }
                 .disabled(!model.isReady || model.isWorking)
             Button("Sprechen") { model.startRecording() }.disabled(!model.isReady || model.isWorking)
             Button("Abbrechen") { model.cancel() }.disabled(!model.isWorking)

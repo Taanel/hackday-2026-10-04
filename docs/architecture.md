@@ -5,7 +5,7 @@ Die Demo-Provider sind ausschließlich für isolierte Tests verfügbar.
 
 ```mermaid
 flowchart TD
-    Wake[Friday / Hey Friday: Moonshine + persönliches Klangmuster lokal] --> Capture[Zentrale AudioInput / Ringpuffer]
+    Wake[Hey Friday: Moonshine; weitere Wake-Varianten optional] --> Capture[Zentrale AudioInput / Ringpuffer]
     Button[Sprechen] --> Capture
     Capture --> Hex[Hex: deutsches WAV zu Text]
     Hex --> Laya[Laya Core ML: Intent und Konfidenz]
@@ -26,7 +26,7 @@ Sprache. Etwa 0,75 Sekunden Stille beenden den Befehl; spätestens nach 30 Sekun
 endet er. Bereits gepufferte Sprache zählt zur Mindestlänge von 0,8 Sekunden.
 Hex erhält PCM16-WAV-Dateien über den authentifizierten Loopback-Service.
 
-Laya wählt open_app, search_web, create_note, switch_desktop, find_project, reasoning oder unknown. Ein separater Parser
+Laya wählt open_app, search_web, create_note, switch_desktop, find_project, open_folder, open_url, home_control, reasoning oder unknown. Ein separater Parser
 akzeptiert nur vollständige unterstützte Aktionen und automatisch entdeckte App-Namen.
 Die Live-Konfidenzgrenze 0.75 ist vorläufig: die ersten deutschen Inferenztests
 rechtfertigen sie für den Prototyp; weitere Kalibrierung bleibt offen. Ungültige,
@@ -75,7 +75,7 @@ Der Store liegt außerhalb von Repo/App-Bundle mit restriktiven Dateirechten.
 Beim Speichern eines neuen Schlüssels verwirft die UI den Cache, einschließlich
 eines Guards gegen ältere noch laufende Leseoperationen. Kein Keychain-Aufruf im App-Code.
 HTTP-Fehler werden sanitisiert. Kurze, vorlesbare Antworten sind der Standard;
-Fragen werden nicht automatisch in Notizen umgewandelt. Zwei Frage-/Antwortpaare
+Fragen werden nicht automatisch in Notizen umgewandelt. Bis acht Frage-/Antwortpaare (maximal 16.000 Zeichen)
 bleiben im Arbeitsspeicher, damit kurze Antworten auf Rückfragen ihren Kontext behalten.
 Recherchefunktionen sind auf eine pro Plan begrenzt und nicht mit Computeraktionen
 kombinierbar. Quellen stammen nur aus Adapterdaten. Die Folgeantwort erhält keine
@@ -108,3 +108,13 @@ LSUIElement macht das gebündelte Friday zur Menüleisten-App ohne Dock-Icon.
 MenuBarExtra verwendet ein statisches Template-Rendering des gepunkteten Kugel-Orbs.
 Das Einstellungsfenster wird im AppDelegate erst beim Öffnen erzeugt und danach
 wiederverwendet. Beim Start entsteht nur das transparente Overlay.
+
+Die Erweiterung v8 nutzt `CachedDecisionEngine` für hohe, gültige lokale Action-
+Entscheidungen. Exact-text keys, 64 Einträge, fünf Minuten, Helper-Epoch-Guards;
+keine Effekte werden gecacht. `HomeAssistantClient` ist ein separater Actor mit
+privatem Store, 60-s-Gerätekatalog, generation-geschützten Requests und strikt
+begrenzten HA-Diensten. `findSafariTab` nutzt denselben lokalen Auswahlweg wie
+Projektsuche; Tab-Inhalte verlassen den Helper nicht. `VoiceController` besitzt
+zusätzlich eine abbrechbare Follow-up-Aufnahme mit Sprachbeginn-Timeout. Bare-
+und Acoustic-only-Wake sind standardmäßig aus. Fensteraktivität pausiert Orbs;
+der vendorte TimelineView-Clock ist auf 24 fps begrenzt.

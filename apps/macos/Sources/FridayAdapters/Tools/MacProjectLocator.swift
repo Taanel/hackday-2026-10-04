@@ -17,7 +17,7 @@ public actor MacProjectLocator {
         init(_ element: AXUIElement, pid: pid_t, query: String) { self.element = element; self.pid = pid; self.query = query }
     }
     private struct AppInfo: Sendable { let pid: pid_t; let name: String; let identifier: String }
-    private enum Target: Sendable { case window(WindowReference), terminal(windowID: Int, tty: String, query: String) }
+    private enum Target: Sendable { case window(WindowReference), terminal(windowID: Int, tty: String, query: String), safari(windowID: Int, url: String, query: String, contents: Bool) }
     private struct Candidate: Sendable { let match: ProjectMatch; let target: Target; let score: Int }
     private var candidates: [Candidate] = []
     public var matches: [ProjectMatch] { candidates.map(\.match) }
@@ -98,6 +98,8 @@ public actor MacProjectLocator {
         }
         try Task.checkCancellation()
         switch candidate.target {
+        case .safari(let windowID, let url, let query, let contents):
+            _ = try await safariRequest(op: "focus", query: query, contents: contents, windowID: windowID, url: url)
         case .terminal(let windowID, let tty, let query):
             _ = try await terminalRequest(op: "focus", windowID: windowID, tty: tty, query: query)
         case .window(let reference):
@@ -122,6 +124,35 @@ public actor MacProjectLocator {
         try Task.checkCancellation()
         candidates = []
         return "Gefunden und fokussiert: \(candidate.match.application) · \(candidate.match.title)."
+    }
+
+    public func findSafari(query: String, searchContents: Bool) async throws -> String {
+        guard ToolRequest.findSafariTab(query: query, searchContents: searchContents).hasValidArguments else { throw AdapterError.unavailable("Bitte einen konkreten Safari-Suchbegriff nennen.") }
+        let data = try await safariRequest(op: "snapshot", query: query, contents: searchContents)
+        struct Reply: Decodable {
+            struct Tab: Decodable { let windowID: Int; let title: String; let url: String }
+            let tabs: [Tab]; let contentUnavailable: Bool?
+        }
+        let reply = try JSONDecoder().decode(Reply.self, from: data)
+        try Task.checkCancellation()
+        candidates = Array(reply.tabs.prefix(8)).map { tab in
+            Candidate(match: ProjectMatch(id: UUID(), title: tab.title + " · " + tab.url, application: "Safari"),
+                      target: .safari(windowID: tab.windowID, url: tab.url, query: query, contents: searchContents), score: 1)
+        }
+        if let only = candidates.first, candidates.count == 1 { return try await focus(only.match.id) }
+        if !candidates.isEmpty { return "\(candidates.count) Safari-Tabs gefunden. Im Friday-Fenster einen Treffer wählen." }
+        return reply.contentUnavailable == true ? "Kein passender Titel oder Link gefunden; der Safari-Seitentext war nicht lesbar." : "Kein offener Safari-Tab passt zu „\(query)“. Lokal in Titel, Adresse\(searchContents ? " und Seitentext" : "") gesucht."
+    }
+
+    private func safariRequest(op: String, query: String, contents: Bool, windowID: Int? = nil, url: String? = nil) async throws -> Data {
+        let worker = JSONLineProcess(executable: "/usr/bin/osascript", arguments: ["-l", "JavaScript", "-e", SafariTabScript.source], startupTimeout: 3)
+        let id = UUID().uuidString
+        var fields: [String: Any] = ["id": id, "op": op, "query": MacApplicationCatalog.normalize(query), "contents": contents]
+        if let windowID { fields["windowID"] = windowID }; if let url { fields["url"] = url }
+        do {
+            let reply = try await worker.request(JSONSerialization.data(withJSONObject: fields), id: id, timeout: 10)
+            await worker.stop(); return reply
+        } catch { await worker.stop(); throw error }
     }
 
     static func score(query: String, title: String, contents: String = "") -> Int {

@@ -1,6 +1,16 @@
 import Testing
 @testable import FridayAdapters
 
+@Test func fastEndpointUses500MillisecondsWithoutEndingSilenceOnlyCapture() {
+    var fast = CommandEndpoint(preRollSamples: 32000, fast: true)
+    let before = fast.accept(Array(repeating: 0, count: 7999))
+    let end = fast.accept([0])
+    #expect(!before); #expect(end)
+    var silence = CommandEndpoint(fast: true)
+    let quiet = silence.accept(Array(repeating: 0, count: 16000))
+    #expect(!quiet)
+}
+
 @Test func commandUsesCapturedWakeAudioWithoutWaitingAnotherMinimumDuration() {
     var endpoint = CommandEndpoint(preRollSamples: 32_000)
     let shortPause = endpoint.accept(Array(repeating: 0, count: 9_600))

@@ -53,7 +53,25 @@ public struct ActionArgumentParser: Sendable {
     public func parse(intent: String, text: String) -> ToolRequest? {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch intent {
+        case "home_control":
+            return HomeAssistantCommandParser.parse(text).map(ToolRequest.homeAssistant)
+        case "open_folder":
+            guard let name = capture(#"^(?:bitte\s+)?(?:öffne|oeffne|zeige|zeig)\s+(?:bitte\s+)?(?:(?:den|die|das|meinen|meine)\s+)?(?:ordner\s+)?(downloads|dokumente|documents|schreibtisch|desktop|home|benutzerordner)(?:\s+ordner)?(?:\s+im\s+finder)?[.!?]*$"#, text) else { return nil }
+            let names: [String: MacFolder] = ["downloads": .downloads, "dokumente": .documents, "documents": .documents, "schreibtisch": .desktop, "desktop": .desktop, "home": .home, "benutzerordner": .home]
+            return names[name.lowercased()].map(ToolRequest.openFolder)
+        case "open_url":
+            guard let address = capture(#"^(?:bitte\s+)?(?:öffne|oeffne|besuche|geh\s+auf|gehe\s+auf)\s+(?:bitte\s+)?((?:https?://|www\.)[^\s]+?)(?:\s+im\s+browser)?[!?]*$"#, text),
+                  let url = URL(string: address.hasPrefix("www.") ? "https://" + address : address), ToolRequest.openURL(url).hasValidArguments else { return nil }
+            return .openURL(url)
         case "find_project":
+            if let expression = try? NSRegularExpression(pattern: #"^(?:bitte\s+)?(?:finde|such|suche|zeige|zeig)\b.*?\bsafari[\s-]*tab\b.*?\b(?:mit|zu|nach)\s+(?:(?:dem\s+|der\s+)?(inhalt|seite)\s+)?(.+?)(?:\s+(?:offen|raus))?[.!?]*$"#, options: .caseInsensitive),
+               let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let range = Range(match.range(at: 2), in: text) {
+                let query = String(text[range])
+                let contents = Range(match.range(at: 1), in: text).map { String(text[$0]).lowercased() == "inhalt" } ?? false
+                let request = ToolRequest.findSafariTab(query: query, searchContents: contents)
+                if request.hasValidArguments { return request }
+            }
             guard let query = capture(#"^(?:bitte\s+)?(?:(?:kannst|könntest)\s+du\s+(?:bitte\s+)?)?(?:finde|such|suche|zeige|zeig|wo)\b.*?\b(?:projekt|project)\s+[„\"']?(.+?)[”\"']?(?:\s+(?:offen|geöffnet|raus)(?:\s+.*)?)?[.!?]*$"#, text),
                   text.range(of: #"\b(?:safari|google|web|internet)\b"#, options: [.regularExpression, .caseInsensitive]) == nil,
                   query.range(of: #"\b(?:und|dann|danach)\s+(?:öffne|lösche|starte|mach|schließe)\b"#, options: [.regularExpression, .caseInsensitive]) == nil,

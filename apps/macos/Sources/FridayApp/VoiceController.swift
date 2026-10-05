@@ -8,12 +8,14 @@ import FridayAdapters
     var onError: ((any Error) -> Void)? { get set }
     var isRecording: Bool { get }
     var totalSamples: Int { get }
+    var hasRecordedSpeech: Bool { get }
     func start() async throws
     func stop()
     func beginRecording(fromSample: Int?)
     func finishRecording() throws -> URL?
     func cancelRecording()
 }
+extension VoiceAudioInput { var hasRecordedSpeech: Bool { false } }
 extension AudioInput: VoiceAudioInput {}
 
 /// Owns listening/capture. Processing belongs to the ViewModel, which rearms after completion.
@@ -22,6 +24,9 @@ extension AudioInput: VoiceAudioInput {}
     var onCommand: ((URL, Bool) -> Void)?
     var onError: ((any Error) -> Void)?
     var onWakeRecovery: (() -> Void)?
+    var onFollowUpTimeout: (() -> Void)?
+    private(set) var followingReply = false
+    private var followUpTimeout: Task<Void, Never>?
     private let audio: any VoiceAudioInput
     private let wake: MoonshineWakeWordDetector
     private var enabled = false
@@ -46,6 +51,7 @@ extension AudioInput: VoiceAudioInput {}
         }
         audio.onRecordingEnded = { [weak self] file in
             guard let self else { return }
+            self.followUpTimeout?.cancel(); self.followUpTimeout = nil; self.followingReply = false
             if !self.enabled { self.audio.stop() }
             self.onCommand?(file, self.wakeTriggered)
         }
@@ -93,10 +99,17 @@ extension AudioInput: VoiceAudioInput {}
         try Task.checkCancellation()
         guard !closed else { throw CancellationError() }
         guard enabled, !audio.isRecording else { if !audio.isRecording { audio.stop() }; return }
+        let token = generation
         try await audio.start()
+        try Task.checkCancellation()
+        guard enabled, !closed, generation == token, !audio.isRecording else { return }
         try await wake.start()
+        try Task.checkCancellation()
+        guard enabled, !closed, generation == token, !audio.isRecording else { return }
         wakeGeneration = try await wake.resume()
         wakeSession = await wake.sessionID
+        try Task.checkCancellation()
+        guard enabled, !closed, generation == token, !audio.isRecording else { return }
         let (frames, continuation) = AsyncStream<[Float]>.makeStream(bufferingPolicy: .bufferingNewest(80))
         frameContinuation?.finish(); feedTask?.cancel()
         frameContinuation = continuation
@@ -181,6 +194,22 @@ extension AudioInput: VoiceAudioInput {}
         }
     }
 
+    func followUpRecording(timeout: Duration = .seconds(8)) async throws {
+        try await manualRecording()
+        followingReply = true
+        let token = generation
+        followUpTimeout = Task { [weak self] in
+            do { try await Task.sleep(for: timeout) } catch { return }
+            guard let self, self.generation == token, !self.closed, self.followingReply,
+                  self.audio.isRecording, !self.audio.hasRecordedSpeech else { return }
+            self.followingReply = false
+            self.audio.cancelRecording()
+            do { try await self.rearm() } catch { self.onError?(error) }
+            guard self.generation == token, !self.closed, !Task.isCancelled else { return }
+            self.onFollowUpTimeout?()
+        }
+    }
+
     func finishRecording() throws {
         defer { if !enabled { audio.stop() } }
         if let file = try audio.finishRecording() {
@@ -190,6 +219,7 @@ extension AudioInput: VoiceAudioInput {}
     }
 
     func suspend() async {
+        followUpTimeout?.cancel(); followUpTimeout = nil; followingReply = false
         awaitingWake = false
         frameContinuation?.finish(); frameContinuation = nil
         feedTask?.cancel(); feedTask = nil
@@ -204,6 +234,7 @@ extension AudioInput: VoiceAudioInput {}
     }
 
     func shutdown() async {
+        followUpTimeout?.cancel(); followUpTimeout = nil; followingReply = false
         closed = true; enabled = false; generation = UUID()
         audio.stop()
         frameContinuation?.finish()

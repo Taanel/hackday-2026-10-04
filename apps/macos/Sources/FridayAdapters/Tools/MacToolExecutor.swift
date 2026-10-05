@@ -5,10 +5,12 @@ import FridayCore
 public struct MacToolExecutor: ToolExecutor {
     public let notesDirectory: URL
     public let projectLocator: MacProjectLocator
+    public let homeAssistant: HomeAssistantClient
     public init(notesDirectory: URL = RuntimeConfiguration.supportDirectory.appendingPathComponent("Notes"),
-                projectLocator: MacProjectLocator = MacProjectLocator()) {
+                projectLocator: MacProjectLocator = MacProjectLocator(), homeAssistant: HomeAssistantClient = HomeAssistantClient()) {
         self.notesDirectory = notesDirectory
         self.projectLocator = projectLocator
+        self.homeAssistant = homeAssistant
     }
 
     public func execute(_ request: ToolRequest) async throws -> String {
@@ -31,9 +33,36 @@ public struct MacToolExecutor: ToolExecutor {
             return try await Self.switchDesktop(direction)
         case .findProject(let query):
             return try await projectLocator.find(query: query)
+        case .findSafariTab(let query, let contents):
+            return try await projectLocator.findSafari(query: query, searchContents: contents)
+        case .homeAssistant(let action):
+            return try await homeAssistant.execute(action)
+        case .openFolder(let folder):
+            return try await Self.openFolder(folder)
+        case .openURL(let url):
+            guard request.hasValidArguments else { throw AdapterError.unavailable("Ungültige Webseiten-Adresse.") }
+            return try await Self.openURL(url)
         case .runExecutable:
             throw AdapterError.unavailable("Freie Terminalbefehle sind in V1 noch nicht eingerichtet.")
         }
+    }
+
+    @MainActor private static func openFolder(_ folder: MacFolder) throws -> String {
+        try Task.checkCancellation()
+        let directory: URL
+        switch folder {
+        case .home: directory = FileManager.default.homeDirectoryForCurrentUser
+        case .downloads: directory = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        case .documents: directory = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        case .desktop: directory = try FileManager.default.url(for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        }
+        guard NSWorkspace.shared.open(directory) else { throw AdapterError.unavailable("Finder konnte den Ordner nicht öffnen.") }
+        return "Ordner geöffnet: \(directory.lastPathComponent)."
+    }
+    @MainActor private static func openURL(_ url: URL) throws -> String {
+        try Task.checkCancellation()
+        guard NSWorkspace.shared.open(url) else { throw AdapterError.unavailable("Browser konnte die Adresse nicht öffnen.") }
+        return "Webseite geöffnet: \(url.host ?? "Webseite")."
     }
 
     @MainActor private static func switchDesktop(_ direction: DesktopDirection) throws -> String {

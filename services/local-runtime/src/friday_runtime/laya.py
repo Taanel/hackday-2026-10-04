@@ -19,15 +19,18 @@ from .protocol import (
 INTENT_QUESTION = {
     "intent": {
         "type": "choice",
-        "instructions": "Welche Absicht hat die deutsche Anfrage? Wähle die passende Aktion.",
+        "instructions": "Welche Aktion ist gemeint?",
         "criteria": {
-            "open_app": "Programm öffnen oder starten.",
-            "search_web": "Websuche im Browser ausführen.",
-            "create_note": "Notiz mit diktiertem Inhalt speichern.",
-            "switch_desktop": "Mac-Schreibtisch wechseln.",
-            "find_project": "Offenes Projekt in lokalen Fenstern oder Terminal-Tabs finden.",
-            "reasoning": "Frage beantworten, erklären, rechnen oder planen.",
-            "unknown": "Unklar oder andere Aktion.",
+            "open_app": "App öffnen.",
+            "search_web": "Websuche.",
+            "create_note": "Notiz speichern.",
+            "switch_desktop": "Schreibtisch wechseln.",
+            "find_project": "Projekt oder Safari-Tab finden.",
+            "open_folder": "Finder-Ordner öffnen.",
+            "open_url": "Webadresse öffnen.",
+            "home_control": "Smart Home steuern.",
+            "reasoning": "Antwort, Erklärung, Plan.",
+            "unknown": "Andere Aktion.",
         },
     }
 }

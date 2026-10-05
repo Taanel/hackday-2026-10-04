@@ -53,3 +53,20 @@ for line in sys.stdin:
     #expect(audio.isRecording)
     await voice.shutdown()
 }
+
+@Test @MainActor func followUpSilenceReturnsToWakeAndCancelCannotReopenTheMicrophone() async throws {
+    let audio=MicrophoneStub()
+    let worker=JSONLineProcess(executable:"/nonexistent",arguments:[])
+    let voice=VoiceController(wake:MoonshineWakeWordDetector(worker:worker),audio:audio)
+    var expirations=0
+    voice.onFollowUpTimeout={expirations+=1}
+    try await voice.followUpRecording(timeout:.milliseconds(30))
+    #expect(audio.isRecording)
+    try await Task.sleep(for:.milliseconds(60))
+    #expect(!audio.isRecording); #expect(expirations == 1)
+    try await voice.followUpRecording(timeout:.milliseconds(30))
+    await voice.cancel()
+    try await Task.sleep(for:.milliseconds(60))
+    #expect(!audio.isRecording); #expect(expirations == 1)
+    await voice.shutdown()
+}

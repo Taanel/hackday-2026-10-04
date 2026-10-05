@@ -6,6 +6,19 @@ import FridayAdapters
     @Published var input = "Öffne Safari"
     @Published var mode: InputMode = .assistant
     @Published var speakResponses = true
+    @Published var conversationMode = UserDefaults.standard.object(forKey: "Friday.conversationMode") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(conversationMode, forKey: "Friday.conversationMode") }
+    }
+    @Published var allowBareWake = UserDefaults.standard.bool(forKey: "Friday.allowBareWake") {
+        didSet { UserDefaults.standard.set(allowBareWake, forKey: "Friday.allowBareWake") }
+    }
+    @Published var allowPersonalWake = UserDefaults.standard.bool(forKey: "Friday.allowPersonalWake") {
+        didSet { UserDefaults.standard.set(allowPersonalWake, forKey: "Friday.allowPersonalWake") }
+    }
+    @Published var fastEndpoint = UserDefaults.standard.bool(forKey: "Friday.fastEndpoint") {
+        didSet { UserDefaults.standard.set(fastEndpoint, forKey: "Friday.fastEndpoint") }
+    }
+    let homeSettings: HomeAssistantSettings
     @Published var geminiKeyInput = ""
     @Published private(set) var geminiKeyConfigured = false
     @Published private(set) var geminiKeyStatus = ""
@@ -60,11 +73,13 @@ import FridayAdapters
             tools: PreviewToolExecutor()
         ),
         speech: any SpeechOutput = SystemSpeechOutput(),
-        keyStore: LocalGeminiKeyStore = LocalGeminiKeyStore()
+        keyStore: LocalGeminiKeyStore = LocalGeminiKeyStore(),
+        homeAssistant: HomeAssistantClient = HomeAssistantClient()
     ) {
         self.router = router
         self.speech = speech
         self.keyStore = keyStore
+        self.homeSettings = HomeAssistantSettings(client: homeAssistant)
         geminiKeyConfigured = keyStore.isConfigured
     }
 
@@ -152,13 +167,14 @@ import FridayAdapters
             }
             let cloudSpeech = configuration.reasoningProvider == "gemini" ? GeminiSpeechOutput() : nil
             let projectLocator = MacProjectLocator()
+            let homeAssistant = HomeAssistantClient()
             let speech: any SpeechOutput
             if let cloudSpeech { speech = cloudSpeech } else { speech = SystemSpeechOutput() }
             let model = AssistantViewModel(router: AssistantRouter(
-                decisions: LayaDecisionEngine(worker: laya, parser: parser),
+                decisions: CachedDecisionEngine(engine: LayaDecisionEngine(worker: laya, parser: parser), epoch: { await laya.sessionID }),
                 reasoning: reasoning,
-                tools: MacToolExecutor(projectLocator: projectLocator), minimumConfidence: 0.75
-            ), speech: speech)
+                tools: MacToolExecutor(projectLocator: projectLocator, homeAssistant: homeAssistant), minimumConfidence: 0.75
+            ), speech: speech, homeAssistant: homeAssistant)
             model.isLive = true; model.isReady = false
             model.gemini = gemini
             model.cloudSpeech = cloudSpeech
@@ -173,13 +189,19 @@ import FridayAdapters
                 model.phase = phase
                 model.isRecording = phase == .recording
                 model.isWorking = phase == .recording
-                if phase == .listening { model.status = "Höre auf „Friday“ oder „Hey Friday“ · lokal" }
+                if phase == .listening { model.status = model.allowBareWake ? "Höre auf „Friday“ oder „Hey Friday“ · lokal" : "Höre ausschließlich auf „Hey Friday“ · lokal" }
                 else if phase == .recording {
                     model.clearTranscript()
                     model.status = "Sprich deinen Befehl. Eine Pause beendet die Aufnahme."
                 }
             }
             voice.onCommand = { [weak model] file, stripWake in model?.processRecording(file, stripWake: stripWake) }
+            voice.onFollowUpTimeout = { [weak model] in
+                guard let model else { return }
+                model.isRecording = false; model.isWorking = false
+                model.phase = model.wakeEnabled ? .listening : .idle
+                model.status = "Rückfrage abgelaufen · wieder Wake-Wort nötig"
+            }
             voice.onWakeRecovery = { [weak model] in model?.status = "Wake-Erkennung startet neu …" }
             voice.onError = { [weak model] error in
                 guard let model else { return }
@@ -312,9 +334,10 @@ import FridayAdapters
         status = "Verarbeite …"
         task = Task {
             var successfulAction = false
+            var offerFollowUp = false
             defer {
                 if let audioFile { try? FileManager.default.removeItem(at: audioFile) }
-                if generation == token { isWorking = false; task = nil }
+                if generation == token { isWorking = isRecording; task = nil }
             }
             do {
                 await voice?.suspend()
@@ -328,6 +351,10 @@ import FridayAdapters
                     input = submittedInput
                 }
                 showTranscript(submittedInput)
+                if Self.endsConversation(submittedInput) {
+                    response = "Alles klar."; phase = .idle; status = "Gespräch beendet"
+                    await rearmVoice(token: token); expireTranscript(after: .seconds(1)); return
+                }
                 let result = try await router.handle(submittedInput, mode: submittedMode) { [weak self] phase in
                     await self?.showPhase(phase, token: token)
                 }
@@ -349,7 +376,10 @@ import FridayAdapters
                 // Computer actions finish visually; only requested LLM answers are spoken.
                 if shouldSpeak && result.route == .reasoning {
                     phase = .speaking
-                    do { try await speech.speak(result.text) }
+                    do {
+                        try await speech.speak(result.text)
+                        offerFollowUp = conversationMode && wakeEnabled && submittedMode == .assistant && Self.isFollowUpQuestion(result.text)
+                    }
                     catch is CancellationError { throw CancellationError() }
                     catch { status = "Antwort erhalten · Sprachausgabe: \(error.localizedDescription)" }
                 }
@@ -369,10 +399,26 @@ import FridayAdapters
                     try? await speech.speak(response)
                 }
             }
-            await rearmVoice(token: token)
+            if offerFollowUp, generation == token, !shuttingDown, let voice {
+                do {
+                    try Task.checkCancellation()
+                    try await voice.followUpRecording()
+                    status = "Antworte auf die Rückfrage · 8 Sekunden · kein Wake-Wort nötig"
+                    showTranscript("Du kannst jetzt direkt antworten · Stop beendet das Zuhören")
+                } catch { await rearmVoice(token: token) }
+            } else { await rearmVoice(token: token) }
             if generation == token { expireTranscript(after: successfulAction ? .seconds(1) : .seconds(8)) }
         }
     }
+
+    static func isFollowUpQuestion(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?")
+    }
+    static func endsConversation(_ text: String) -> Bool {
+        let value = String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+        return ["neeistegal", "neinistegal", "istegal", "abbrechen", "gesprächbeenden", "dankedaswars", "stop", "stopp"].contains(value)
+    }
+    func clearConversation() async { await gemini?.clearConversation(); status = "Gesprächskontext gelöscht" }
 
     func focusProjectMatch(_ id: UUID) {
         guard !shuttingDown, !isWorking, let projectLocator else { return }

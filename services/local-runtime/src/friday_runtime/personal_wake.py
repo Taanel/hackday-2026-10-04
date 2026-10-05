@@ -61,7 +61,9 @@ def _match(template, live):
         current_lengths = np.zeros(m + 1, dtype=int)
         for j in range(1, m + 1):
             options = (previous[j - 1], previous[j], current[j - 1])
-            k = int(np.argmin(options))
+            # Scalar minimum with the same first-index tie behavior as argmin.
+            # Avoid allocating a NumPy array for every DTW cell.
+            k = 0 if options[0] <= options[1] and options[0] <= options[2] else (1 if options[1] <= options[2] else 2)
             if k == 0:
                 start, length = starts[j - 1], lengths[j - 1]
             elif k == 1:

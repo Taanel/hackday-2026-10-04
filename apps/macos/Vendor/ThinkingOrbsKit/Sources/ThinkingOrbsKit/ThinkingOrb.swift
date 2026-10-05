@@ -71,7 +71,7 @@ public struct ThinkingOrb: View {
                 // one static, deterministic frame — same instant as the web
                 canvas(preset: preset, t: OrbSpec.reducedMotionT * effSpeed)
             } else {
-                TimelineView(.animation(paused: paused)) { timeline in
+                TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: paused)) { timeline in
                     // One shared clock, so several orbs on screen stay in
                     // phase exactly as they do on the web.
                     let t = timeline.date.timeIntervalSinceReferenceDate * effSpeed

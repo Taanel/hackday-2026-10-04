@@ -2,6 +2,11 @@ import SwiftUI
 import FridayCore
 import ThinkingOrbsKit
 
+@MainActor final class OrbWindowActivity: ObservableObject {
+    static let shared = OrbWindowActivity()
+    @Published var active = false
+}
+
 extension AssistantPhase {
     var orbState: OrbState {
         switch self {
@@ -35,11 +40,13 @@ extension AssistantPhase {
 struct AssistantOrb: View {
     let phase: AssistantPhase
     var size: OrbSize = .px64
+    var windowContent = false
     @ObservedObject var preferences: OrbPreferences = .shared
+    @ObservedObject private var activity = OrbWindowActivity.shared
 
     var body: some View {
         ThinkingOrb(state: preferences.state(for: phase), size: size, speed: phase == .recording ? 0.5 : 1,
-                    paused: phase == .idle || phase == .listening || phase == .failed)
+                    paused: phase == .idle || phase == .listening || phase == .failed || (windowContent && !activity.active))
             .overlay(alignment: .bottomTrailing) {
                 if phase == .failed {
                     Image(systemName: "exclamationmark.circle.fill")
@@ -54,6 +61,7 @@ struct AssistantOrb: View {
 struct OrbGallery: View {
     @ObservedObject var preferences: OrbPreferences = .shared
     @State private var selectedPhase: AssistantPhase = .idle
+    @ObservedObject private var activity = OrbWindowActivity.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -68,7 +76,7 @@ struct OrbGallery: View {
                 ForEach(OrbState.allCases, id: \.rawValue) { state in
                     Button { preferences.assign(state, to: selectedPhase) } label: {
                         VStack(spacing: 6) {
-                            ThinkingOrb(state: state, size: .px64)
+                            ThinkingOrb(state: state, size: .px64, paused: !activity.active || preferences.state(for: selectedPhase) != state)
                             HStack(spacing: 4) {
                                 Text(state.rawValue)
                                 if preferences.state(for: selectedPhase) == state {

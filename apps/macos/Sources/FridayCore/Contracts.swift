@@ -47,6 +47,28 @@ public struct TerminalCommand: Sendable, Equatable {
 }
 
 public enum DesktopDirection: String, Sendable, Equatable { case left, right }
+public enum MacFolder: String, Sendable, CaseIterable { case downloads, documents, desktop, home }
+
+public struct HomeAssistantAction: Sendable, Equatable {
+    public enum Operation: String, Sendable { case turnOn, turnOff, activateScene, brightness, temperature }
+    public let target: String
+    public let operation: Operation
+    public let value: Double?
+    public init(target: String, operation: Operation, value: Double? = nil) {
+        self.target = target; self.operation = operation; self.value = value
+    }
+    public var isValid: Bool {
+        guard (2...160).contains(target.trimmingCharacters(in: .whitespacesAndNewlines).count) else { return false }
+        switch operation {
+        case .turnOn, .turnOff, .activateScene: return value == nil
+        case .brightness: return value.map { $0.isFinite && (0...100).contains($0) } ?? false
+        case .temperature: return value.map { $0.isFinite && (5...35).contains($0) } ?? false
+        }
+    }
+    public static func isImmediateRequest(_ text: String) -> Bool {
+        text.range(of: #"\b(?:und|dann|danach|wenn|morgen|später|nachher|falls)\b|\b(?:um|in)\s+\d"#, options: [.regularExpression, .caseInsensitive]) == nil
+    }
+}
 
 public enum ToolRequest: Sendable, Equatable {
     case openApplication(bundleIdentifier: String)
@@ -54,6 +76,10 @@ public enum ToolRequest: Sendable, Equatable {
     case createNote(text: String)
     case switchDesktop(direction: DesktopDirection)
     case findProject(query: String)
+    case findSafariTab(query: String, searchContents: Bool)
+    case openFolder(MacFolder)
+    case openURL(URL)
+    case homeAssistant(HomeAssistantAction)
     case runExecutable(TerminalCommand)
 
     /// Structural validation only. A real executor must also enforce its own policy.
@@ -66,8 +92,12 @@ public enum ToolRequest: Sendable, Equatable {
         case .searchSafari(let query):
             return !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && query.count <= 2_000
         case .switchDesktop: return true
-        case .findProject(let query):
-            return (2...200).contains(query.trimmingCharacters(in: .whitespacesAndNewlines).count)
+        case .findProject(let query), .findSafariTab(let query, _):
+            return (2...200).contains(query.trimmingCharacters(in: .whitespacesAndNewlines).count) && query.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.count >= 2
+        case .openFolder: return true
+        case .openURL(let url):
+            return ["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host?.isEmpty == false && url.user == nil && url.password == nil && url.absoluteString.count <= 2000
+        case .homeAssistant(let action): return action.isValid
         case .runExecutable(let command):
             return command.executablePath.hasPrefix("/") && command.workingDirectory.isFileURL
         }

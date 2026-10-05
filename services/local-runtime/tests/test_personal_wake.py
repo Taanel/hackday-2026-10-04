@@ -120,3 +120,16 @@ def test_worker_enrollment_uses_local_profile_and_can_recover_a_corrupt_one(tmp_
     assert output[-1]["id"] == identifier
     assert "error" not in output[-1]
     assert json.loads(target.read_text())["version"] == 1
+
+
+def test_scalar_dtw_preserves_reference_score_and_span():
+    from friday_runtime.personal_wake import _match
+    rng = np.random.default_rng(42)
+    template = rng.normal(size=(60, 13)).astype(np.float32)
+    template /= np.linalg.norm(template, axis=1, keepdims=True)
+    live = rng.normal(size=(190, 13)).astype(np.float32)
+    live /= np.linalg.norm(live, axis=1, keepdims=True)
+    live[120:180] = template
+    score, start, end = _match(template, live)
+    assert score == pytest.approx(0.07224568544012128, abs=1e-10)
+    assert (start, end) == (120, 186)

@@ -34,10 +34,12 @@ public actor MoonshineWakeWordDetector {
         _ = try await worker.request(JSONEncoder().encode(Control(id: id)), id: id)
     }
     public func resume() async throws -> Int {
-        struct Control: Encodable { let id: String; let op = "resume" }
+        struct Control: Encodable { let id: String; let op = "resume"; let allowBare: Bool; let allowPersonal: Bool }
         struct Reply: Decodable { let generation: Int }
         let id = UUID().uuidString
-        let data = try await worker.request(JSONEncoder().encode(Control(id: id)), id: id)
+        let data = try await worker.request(JSONEncoder().encode(Control(id: id,
+            allowBare: UserDefaults.standard.bool(forKey: "Friday.allowBareWake"),
+            allowPersonal: UserDefaults.standard.bool(forKey: "Friday.allowPersonalWake"))), id: id)
         return try JSONDecoder().decode(Reply.self, from: data).generation
     }
     public func enroll(files: [URL]) async throws {

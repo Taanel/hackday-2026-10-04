@@ -46,6 +46,7 @@ private final class Resampler: @unchecked Sendable {
     private var ring: [Float] = []
     private var recording: [Float] = []
     private var endpoint = CommandEndpoint()
+    public var hasRecordedSpeech: Bool { endpoint.hasSpeech }
 
     public init() {}
 
@@ -104,7 +105,7 @@ private final class Resampler: @unchecked Sendable {
         let count = fromSample.map { max(0, min(ring.count, totalSamples - $0)) } ?? 0
         recording = Array(ring.suffix(count))
         isRecording = true
-        endpoint = CommandEndpoint(preRollSamples: count)
+        endpoint = CommandEndpoint(preRollSamples: count, fast: UserDefaults.standard.bool(forKey: "Friday.fastEndpoint"))
     }
 
     public func finishRecording() throws -> URL? {

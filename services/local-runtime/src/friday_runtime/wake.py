@@ -19,10 +19,10 @@ from .protocol import (
 )
 
 
-def has_wake_prefix(text: str) -> bool:
+def has_wake_prefix(text: str, *, allow_bare: bool = False) -> bool:
     normalized = unicodedata.normalize("NFKC", text).casefold()
     words = re.findall(r"[^\W_]+", normalized)
-    return words[:1] == ["friday"] or words[:2] == ["hey", "friday"]
+    return words[:2] == ["hey", "friday"] or (allow_bare and words[:1] == ["friday"])
 
 
 def _listener(worker, generation: int, base: type):
@@ -40,7 +40,7 @@ def _listener(worker, generation: int, base: type):
 
 
 class WakeWorker:
-    def __init__(self, transcriber, emit: Emitter, *, listener_base: type, personal=None):
+    def __init__(self, transcriber, emit: Emitter, *, listener_base: type, personal=None, allow_bare=False, allow_personal=False):
         self.transcriber = transcriber
         self.emit = emit
         self.listener_base = listener_base
@@ -50,6 +50,8 @@ class WakeWorker:
         self.active = False
         self.fired = False
         self.personal = personal
+        self.allow_bare = allow_bare
+        self.allow_personal = allow_personal
 
     def accept_line(self, generation: int, line) -> None:
         if generation != self.generation or not self.active or self.fired:
@@ -58,7 +60,7 @@ class WakeWorker:
         if not isinstance(text, str):
             return
         try:
-            if len(text.encode("utf-8")) > MAX_TEXT_BYTES or not has_wake_prefix(text):
+            if len(text.encode("utf-8")) > MAX_TEXT_BYTES or not has_wake_prefix(text, allow_bare=self.allow_bare):
                 return
         except UnicodeError:
             return
@@ -93,7 +95,7 @@ class WakeWorker:
         # Events are emitted synchronously inside add_audio; their offset must
         # include the current block, rather than only preceding blocks.
         self.audio_samples += len(samples)
-        if self.personal is not None:
+        if self.personal is not None and self.allow_personal:
             start = self.personal.add_audio(samples)
             if start is not None and not self.fired:
                 self.fired = True
@@ -173,6 +175,11 @@ def run_wake(model_dir: Path, source: InputStream, emit: Emitter, *, create: Cal
                 elif operation == "pause":
                     worker.pause()
                 elif operation == "resume":
+                    for key in ("allowBare", "allowPersonal"):
+                        if key in request and type(request[key]) is not bool:
+                            raise ProtocolError("Invalid wake setting.")
+                    worker.allow_bare = request.get("allowBare", False)
+                    worker.allow_personal = request.get("allowPersonal", False)
                     worker.resume()
                 elif operation == "enroll":
                     paths = request.get("paths")

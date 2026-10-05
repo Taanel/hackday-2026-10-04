@@ -17,7 +17,15 @@ public struct LayaDecisionEngine: FastDecisionEngine {
         // Canonicalize only a complete, validated search command. Laya still
         // decides the intent; the parser later extracts the original query.
         let modelInput: String
-        if case .findProject(let query) = parser.parse(intent: "find_project", text: text) {
+        if case .homeAssistant = parser.parse(intent: "home_control", text: text) {
+            modelInput = "Steuere ein Smart-Home-Gerät mit Home Assistant: " + text
+        } else if case .openFolder = parser.parse(intent: "open_folder", text: text) {
+            modelInput = "Öffne einen lokalen Finder-Ordner auf diesem Mac: " + text
+        } else if case .openURL = parser.parse(intent: "open_url", text: text) {
+            modelInput = "Öffne eine konkrete Webseiten-Adresse im Browser: " + text
+        } else if case .findSafariTab(let query, _) = parser.parse(intent: "find_project", text: text) {
+            modelInput = "Finde das bereits geöffnete Projekt \(query) in einem lokalen Safari-Tab."
+        } else if case .findProject(let query) = parser.parse(intent: "find_project", text: text) {
             modelInput = "Finde das bereits geöffnete Projekt \(query) in einem lokalen Fenster oder Terminal-Tab auf diesem Mac."
         } else if case .searchSafari(let query) = parser.parse(intent: "search_web", text: text) {
             modelInput = "Bitte führe eine Websuche in Safari nach dem Suchbegriff \(query) aus."

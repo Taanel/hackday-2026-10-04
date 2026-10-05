@@ -212,3 +212,11 @@ func uncertainOrInvalidConfidenceFallsBack(confidence: Double) async throws {
     #expect(await tools.requests.isEmpty)
     #expect(await reasoning.calls == 0)
 }
+
+@Test(arguments:["Schalte morgen Wohnzimmer Licht an", "Schalte Wohnzimmer Licht an, falls es dunkel ist", "Schalte Wohnzimmer Licht in 10 Minuten an"])
+func homePlansCannotGuessTimedOrConditionalEffects(text:String) async {
+    let tools=ToolSpy()
+    let router=AssistantRouter(decisions:DecisionStub(.failure),reasoning:Planner(result:.actions([.homeAssistant(.init(target:"Wohnzimmer Licht",operation:.turnOn))])),tools:tools)
+    await #expect(throws:FridayError.self) { try await router.handle(text) }
+    #expect(await tools.requests.isEmpty)
+}

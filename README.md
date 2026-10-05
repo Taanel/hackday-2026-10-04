@@ -1,7 +1,7 @@
 # Friday — lokaler Assistent für macOS
 
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
-„Friday“ und „Hey Friday“, deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
+„Hey Friday“ (weitere Wake-Varianten optional), deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
 optional mit Gemini-TTS auf Deutsch vorgelesen werden. Friday startet als Menüleisten-App
 mit transparentem Overlay, ohne Dock-Icon oder automatisch geöffnetes Fenster.
@@ -47,15 +47,15 @@ Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antwo
 ## Direkt testen
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
-2. „Friday / Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
+2. „Hey Friday aktivieren“ und macOS-Mikrofonzugriff erlauben.
    Wenn die Standard-Erkennung die Aussprache nicht versteht: „Hey Friday anlernen“
    anklicken und dreimal nur die Phrase einsprechen, jeweils kurz still sein.
    Nach jeder Probe den Button für die nächste Aufnahme verwenden. Das persönliche
-   Klangmuster wird lokal gespeichert und anschließend automatisch aktiviert.
+   Klangmuster wird lokal gespeichert. Seine Aktivierung bleibt eine ausdrückliche Option.
    „Zurücksetzen“ entfernt das Profil. Die Anlernfunktion ist ein Prototyp;
    ihre Zuverlässigkeit mit der eigenen Stimme muss live geprüft werden.
-3. „Friday, öffne Safari“ oder „Hey Friday, öffne Safari“ sagen; etwa 0,75 Sekunden
-   Stille beenden die Aufnahme. Das persönliche Hey-Friday-Profil bleibt zusätzlich aktiv.
+3. „Hey Friday, öffne Safari“ sagen; etwa 0,75 Sekunden
+   Stille beenden die Aufnahme. Das persönliche Klangmuster und „Friday“ allein sind unter „Wake-Erkennung erweitern“ ausdrücklich zuschaltbar; standardmäßig können sie nicht aktivieren.
 4. „Hey Friday, suche nach test auf Safari“ öffnet eine Google-Suche in Safari.
    Auch „Öffne Safari und suche nach Test“ und „Suche nach Test“ funktionieren als direkte Safari-Aktion.
    „Kannst du Shaper 3D öffnen?“ erkennt die installierte App Shapr3D auch mit dieser
@@ -128,9 +128,9 @@ App-Starts und Notizen bleiben stumm.
 
 | Funktion | Erste Version |
 | --- | --- |
-| Wake | Moonshine Tiny Streaming für Friday / Hey Friday; zusätzlich persönliche lokale Klangmuster (3 Sprachproben, DTW) |
+| Wake | Moonshine Tiny Streaming für Hey Friday; optional Friday allein / persönliche lokale Klangmuster (3 Sprachproben, DTW) |
 | Deutsch → Text | Hex 2.1.24, Whisper large-v3-turbo über lokalen API-2-Helper |
-| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus sieben Intents |
+| Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
 | Text → Sprache | Gemini 3.8 Flash-Lite TTS für Gemini; macOS-Systemstimme bei Ollama |
@@ -178,3 +178,58 @@ als ursprünglicher D&D-Starter erhalten; dafür enthielt das Ausgangsrepo keine
 
 Gemini ist ein optionaler Cloud-Dienst mit eigenem Modell und Kontingent, kein
 Open-Weight-Modell. Die lokale Ollama-Alternative bleibt verfügbar.
+
+## Home Assistant und neue lokale Aktionen
+
+Im Friday-Fenster „Home Assistant“ aufklappen, Serveradresse (z.B.
+`http://homeassistant.local`) und einen langlebigen Token aus dem Home-Assistant-
+Profil eintragen, dann „Speichern & verbinden“. Frontend-Pfade wie `/home/overview`
+werden zur Serveradresse normalisiert. Konfiguration und Token liegen nur unter
+`~/Library/Application Support/Friday/Credentials/home-assistant.json` (0600),
+außerhalb von Git/App-Bundle. HTTP-Weiterleitungen erhalten keinen Token.
+
+Friday erkennt Namen und IDs vorhandener Lichter, Steckdosen, Szenen und Heizungen.
+Beispiele: „Schalte Wohnzimmer Licht an“, „Dimme Wohnzimmer Licht auf 30 Prozent“,
+„Aktiviere Szene Abend“, „Stelle Wohnzimmer Heizung auf 21 Grad“. Mehrdeutige Namen
+führen zu einem Hinweis; die eindeutigen IDs stehen im Einstellungsbereich. Helligkeit
+und Temperatur werden gegen Gerätefähigkeiten geprüft (Temperatur in Celsius,
+vorhandene Zieltemperatur-Funktion und passende Bereich/Schrittweite). Zeitpläne,
+Bedingungen und freie HA-Dienste sind nicht implementiert. Nach HTTP-Timeout wird
+kein Steuerungsauftrag automatisch wiederholt. Erfolgsanzeige bestätigt die
+Annahme durch Home Assistant, nicht den physisch beobachteten Gerätezustand.
+Die Verbindung zum tatsächlichen Server wurde ohne Token geprüft (401); echte
+Gerätesteuerung bitte nach Eintragen des Tokens testen.
+
+Zusätzliche Mac-Befehle: „Öffne Downloads“, „Öffne Dokumente“, „Öffne Schreibtisch“,
+„Öffne https://example.com“. Webseiten müssen ausdrücklich als HTTP(S)-Adresse
+angegeben werden. „Finde Safari Tab mit Seite GitHub offen“ sucht lokal in Titel
+und Adresse. „Such mir den Safari-Tab raus mit Inhalt Projekt XY“ liest zusätzlich
+nativen Safari-Seitentext, ohne Screenshot, Webseiten-JavaScript oder Cloud-Upload.
+Bis 80 Tabs werden anhand von Titel/Adresse geprüft, Seitentext nur für die ersten
+20 und höchstens 12.000 Zeichen je Tab. Safari-Automation muss freigegeben sein;
+mehrere Treffer erscheinen zur Auswahl. Doppelte URLs in demselben Fenster können
+nicht eindeutig fokussiert werden und führen zu einem Hinweis.
+
+## Geschwindigkeit, Energie und Gespräch
+
+„Schneller Sprechabschluss“ verkürzt die erforderliche Pause von 750 auf 500 ms.
+Bei längeren Denkpausen deaktivieren. Validierte sichere Entscheidungen werden
+für identische Befehle fünf Minuten im Arbeitsspeicher gecacht (maximal 64);
+Werkzeugausführung, Geräteauflösung und Argumentprüfung bleiben bei jedem Aufruf.
+Keine Antwort-/Ergebnis-Caches und keine Speicherung dieser Befehle auf Disk.
+
+Aktive Orb-Animationen laufen höchstens mit 24 fps. In der Galerie animiert nur
+die gewählte Vorschau; bei inaktivem Einstellungsfenster pausieren alle Fenster-
+Animationen. Idle/Listening bleiben statisch. Der persönliche DTW-Abgleich wurde
+bei gleichen Scores/Schwellen beschleunigt; ohne die opt-in Klangmuster-Aktivierung
+läuft er nicht mit. Moonshine erhält weiterhin alle Audiosamples und dieselbe
+250-ms-Erkennungstaktung. Der tatsächliche Verbrauch und die Erkennung müssen
+nach Neustart mit der eigenen Stimme überprüft werden.
+
+Gemini behält bis acht Frage-/Antwortpaare (maximal 16.000 Zeichen) im Arbeitsspeicher.
+Computeraktionen/Ergebnisse gehören nicht in diesen Kontext. „Gesprächskontext
+löschen“ entfernt ihn. Nach erfolgreichem Vorlesen einer Rückfrage kann Friday
+bei aktiviertem Wake direkt aufnehmen; die Overlay-Anzeige markiert dies deutlich.
+Ohne Sprachbeginn nach acht Sekunden endet die Aufnahme ohne neue Modellanfrage.
+„Nee, ist egal“ beendet das Gespräch. „Nach Rückfragen direkt antworten“ ist
+abschaltbar. Normale Antworten starten keine Aufnahme.

@@ -206,3 +206,14 @@ func speechStateLastsUntilPlaybackFinishesOrIsCancelled(cancel: Bool) async thro
     #expect(model.geminiKeyConfigured)
     #expect(!model.geminiKeyStatus.contains("local-test-key"))
 }
+
+@Test @MainActor func conversationCancellationNeverCallsTheLLMOrVoice() async {
+    let speech=SpeechSpy(), reasoning=CountedReasoning()
+    let model=AssistantViewModel(router:AssistantRouter(decisions:Decision(intent:.reasoning),reasoning:reasoning,tools:Tools()),speech:speech)
+    model.input="Nee, ist egal."
+    model.submit(); await model.task?.value
+    #expect(await reasoning.calls == 0); #expect(speech.texts.isEmpty)
+    #expect(model.response == "Alles klar.")
+    #expect(AssistantViewModel.isFollowUpQuestion("Welche Stadt meinst du?"))
+    #expect(!AssistantViewModel.isFollowUpQuestion("Die Sonne scheint."))
+}

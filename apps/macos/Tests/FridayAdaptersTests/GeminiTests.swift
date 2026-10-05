@@ -140,3 +140,10 @@ private final class GeminiSuccessProtocol: URLProtocol, @unchecked Sendable {
     }
     #expect(throws: AdapterError.self) { try GeminiReasoningEngine.decodeReply(Data(#"{"candidates":[]}"#.utf8), status: 200) }
 }
+
+@Test func geminiExtendedToolsStayTypedAndValidateValues() throws {
+    let reply=Data(#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"control_home","args":{"target":"Wohnzimmer Licht","operation":"brightness","value":"30"}}}]}}]}"#.utf8)
+    #expect(try GeminiReasoningEngine.decodePlan(reply,status:200,parser:ActionArgumentParser()) == .actions([.homeAssistant(.init(target:"Wohnzimmer Licht",operation:.brightness,value:30))]))
+    let bad=Data(#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"open_url","args":{"url":"file:///etc/passwd"}}}]}}]}"#.utf8)
+    #expect(throws:AdapterError.self) { try GeminiReasoningEngine.decodePlan(bad,status:200,parser:ActionArgumentParser()) }
+}

@@ -75,6 +75,9 @@ public struct AssistantRouter: Sendable {
             case .researchedAnswer(let answer, let sources):
                 return AssistantResponse(text: answer, route: .reasoning, sources: sources)
             case .actions(let actions):
+                if actions.contains(where: { if case .homeAssistant = $0 { true } else { false } }), !HomeAssistantAction.isImmediateRequest(text) {
+                    throw FridayError.invalidActionPlan
+                }
                 guard (1...3).contains(actions.count), actions.allSatisfy({ request in
                     if case .runExecutable = request { return false }
                     return request.hasValidArguments
@@ -82,7 +85,9 @@ public struct AssistantRouter: Sendable {
                     throw FridayError.invalidActionPlan
                 }
                 // Lookup may need a user's choice; do not combine it with other actions.
-                if actions.count > 1, actions.contains(where: { if case .findProject = $0 { return true }; return false }) {
+                if actions.count > 1, actions.contains(where: {
+                    switch $0 { case .findProject, .findSafariTab, .homeAssistant: true; default: false }
+                }) {
                     throw FridayError.invalidActionPlan
                 }
                 var results: [String] = []

@@ -22,15 +22,15 @@ normalisierte spektrale Merkmale in `~/Library/Application Support/Friday/VoiceP
 Temporäre WAVs werden anschließend gelöscht. Subsequence-DTW sucht das Klangmuster
 in rollierenden PCM-Fenstern; Lautstärke und Sprechtempo dürfen sich ändern.
 Das ist eine Testfunktion, keine Sprecheridentifikation. Das persönliche Profil
-läuft zusätzlich zu Moonshine, damit auch „Friday“ alleine aktiviert.
+ist nur nach ausdrücklichem Opt-in aktiv. Standardmäßig löst ausschließlich „Hey Friday“ am Anfang einer Äußerung aus; „Friday“ allein ist separat optional.
 „Zurücksetzen“ entfernt nur das persönliche Profil.
 
 Moonshine Tiny Streaming verarbeitet kontinuierlich lokale AudioInput-Samples
-und meldet das Wort „Friday“ oder die vollständige Phrase „Hey Friday“ am Beginn
-einer Äußerung. Die englischen offenen Tiny-Gewichte
+und meldet standardmäßig nur die vollständige Phrase „Hey Friday“ am Beginn
+einer Äußerung. „Friday“ allein erfordert das separate Opt-in. Die englischen offenen Tiny-Gewichte
 werden einmalig vorbereitet; das Mikrofon bleibt unter Kontrolle der nativen App.
-Abnahme: „Friday“ und „Hey Friday“ aktivieren den Assistenten, Stille oder
-Erwähnungen mitten in einem Satz nicht;
+Abnahme: „Hey Friday“ aktiviert den Assistenten; „Friday“ allein, Stille und
+Erwähnungen mitten in einem Satz lösen in der Standardeinstellung nicht aus;
 Erkennung pausiert beim Antworten und kann vollständig abgeschaltet werden.
 Wake-Fehler starten nur den Wake-Helper neu. Transport-Sitzung und Stream-Generation
 verhindern, dass alte Ereignisse nach einem Neustart erneut aktivieren. Audiosamples
@@ -62,7 +62,7 @@ Gemini kann `search_web(query)` oder `weather_forecast(location)` anfordern.
 Open-Meteo-Tagesprognosen für maximal 16 Tage. Ein zweiter Modellaufruf erhält
 die Daten ohne Computerfunktionen. Quellen stammen ausschließlich aus dem Adapter,
 werden getrennt angezeigt und nicht gesprochen. Ohne Wetter-Ort fragt Friday nach;
-die letzten zwei Frage-/Antwortpaare bleiben nur im Arbeitsspeicher. Fehlende Daten
+die letzten acht Frage-/Antwortpaare bleiben nur im Arbeitsspeicher. Fehlende Daten
 und Captchas erzeugen klare Fehler. Suchseiten werden nicht vollständig abgerufen.
 
 ## Computer Use
@@ -134,3 +134,14 @@ gelesen und gecacht. Nach einer Änderung im Eingabefeld wird der Sitzungscache
 mit einem Generation-Token verworfen; alte ausstehende Ladevorgänge dürfen den
 vorherigen Wert nicht wiederherstellen. Speichern prüft das Format, keine API-
 Autorisierung. Fehlende oder von Google abgelehnte Schlüssel erzeugen klare Fehler.
+
+## Home Assistant v8
+
+`HomeAssistantConfigurationStore` speichert origin-gebundene private URL/Token-Daten.
+`HomeAssistantClient` entdeckt light/switch/scene/climate über `/api/states`, prüft
+Einheit und Gerätefähigkeiten und ruft nur fest definierte `/api/services` auf.
+Kein Retry nach POST; keine Credential-Weiterleitung. Ein zusätzlicher Laya-Intent
+wählt lokale Smart-Home-Steuerung. Finder-Ordner, HTTP(S)-Links und Safari-Tab-Suche
+erweitern MacToolExecutor. Gesprächsverlauf und achtsekündige Rückfrage-Aufnahme
+liegen im bestehenden Gemini/VoiceController, ohne zusätzlichen Hintergrundagenten.
+Dokumentation: [HA REST](https://developers.home-assistant.io/docs/api/rest/).

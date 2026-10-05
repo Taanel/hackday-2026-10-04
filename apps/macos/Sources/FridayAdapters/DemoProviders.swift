@@ -35,6 +35,10 @@ public struct PreviewToolExecutor: ToolExecutor {
         switch request {
         case .switchDesktop(let direction): "Vorschau: Schreibtischwechsel nach \(direction.rawValue)."
         case .findProject(let query): "Vorschau: Lokale Projektsuche nach \(query)."
+        case .findSafariTab(let query, _): "Vorschau: Safari-Tab zu \(query) finden."
+        case .openFolder(let folder): "Vorschau: Ordner \(folder.rawValue) öffnen."
+        case .openURL(let url): "Vorschau: Webseite \(url.host ?? "") öffnen."
+        case .homeAssistant(let action): "Vorschau: Home Assistant · \(action.target)."
         case .openApplication(let identifier):
             "Aktionsvorschau: Programm \(identifier) öffnen."
         case .createNote(let text):

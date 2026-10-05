@@ -118,3 +118,28 @@ private struct PrivateProjectTool: ToolExecutor {
     #expect(requests[0].contains("find_project"))
     #expect(!requests[0].contains("PRIVATE_WINDOW_TITLE_AND_LOCAL_CONTENT"))
 }
+
+@Test func safariTabSearchReadsLocallyAndDoesNotUseTabIndexFallback() async throws {
+    let mock = #"""
+    var safari={running:function(){return true;},activate:function(){},windows:function(){return [{
+        id:function(){return 42;},tabs:function(){return [{name:function(){return 'Demo';},url:function(){return 'https://example.org';},text:function(){return 'Secret content about Friday';}}];}
+    }];}};
+    """#
+    let script = SafariTabScript.source.replacingOccurrences(of:"var safari = Application('com.apple.Safari');", with:mock)
+    #expect(!script.contains("Application(")); #expect(!script.contains("doJavaScript"))
+    let worker=JSONLineProcess(executable:"/usr/bin/osascript",arguments:["-l","JavaScript","-e",script],startupTimeout:3)
+    func request(_ fields:[String:Any]) async throws -> Data {
+        let id=UUID().uuidString; var fields=fields; fields["id"]=id
+        return try await worker.request(JSONSerialization.data(withJSONObject:fields),id:id,timeout:3)
+    }
+    do {
+        let body=try await request(["op":"snapshot","query":"secret","contents":true])
+        let tabs=(try JSONSerialization.jsonObject(with:body) as! [String:Any])["tabs"] as! [[String:Any]]
+        #expect(tabs.count == 1)
+        #expect(!String(decoding:body,as:UTF8.self).contains("Secret content"))
+        let reply=try await request(["op":"focus","query":"secret","contents":true,"windowID":42,"url":"https://example.org"])
+        #expect((try JSONSerialization.jsonObject(with:reply) as! [String:Any])["ok"] as? Bool == true)
+        await #expect(throws:AdapterError.self) { try await request(["op":"focus","query":"secret","contents":true,"windowID":42,"url":"https://closed.example.org"]) }
+        await worker.stop()
+    } catch { await worker.stop(); throw error }
+}

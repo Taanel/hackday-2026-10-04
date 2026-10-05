@@ -15,15 +15,15 @@ struct AssistantView: View {
                         Text("Dein Assistent für den Mac").foregroundStyle(.secondary)
                     }
                     Spacer()
-                    AssistantOrb(phase: model.phase)
+                    AssistantOrb(phase: model.phase, windowContent: true)
                         .scaleEffect(0.625).frame(width: 40, height: 40)
                 }
 
-                Text("Sag „Friday, öffne Safari“ oder „Hey Friday, erklär mir einen Quantencomputer“.")
+                Text("Sag „Hey Friday, öffne Safari“ oder „Hey Friday, erklär mir einen Quantencomputer“.")
                     .font(.callout).foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
-                    AssistantOrb(phase: model.phase)
+                    AssistantOrb(phase: model.phase, windowContent: true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(model.phase.label).font(.title3.weight(.semibold))
                         Text(model.status).font(.caption).foregroundStyle(.secondary)
@@ -65,7 +65,7 @@ struct AssistantView: View {
                 }
 
                 HStack {
-                    Toggle("Friday / Hey Friday aktivieren", isOn: Binding(
+                    Toggle("Hey Friday aktivieren", isOn: Binding(
                         get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }
                     ))
                     .toggleStyle(.switch)
@@ -80,6 +80,18 @@ struct AssistantView: View {
                 }
                 Text(model.wakeEnabled ? "Mikrofon aktiv · Erkennung läuft lokal." : "Mikrofon startet beim Aktivieren oder über „Sprechen“.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Schneller Sprechabschluss · 500 ms Pause", isOn: $model.fastEndpoint)
+                    .toggleStyle(.checkbox).disabled(model.isWorking)
+                Text("Für kurze Befehle. Ausschalten, wenn du längere Denkpausen beim Sprechen brauchst.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Nach Rückfragen direkt antworten · höchstens 8 Sekunden warten", isOn: $model.conversationMode)
+                    .toggleStyle(.checkbox).disabled(model.isWorking)
+                DisclosureGroup("Wake-Erkennung erweitern") {
+                    Toggle("Auch auf „Friday“ allein reagieren", isOn: $model.allowBareWake).toggleStyle(.checkbox)
+                    Toggle("Klangmuster darf allein aktivieren · experimentell", isOn: $model.allowPersonalWake).toggleStyle(.checkbox)
+                    Text("Beides kann normale Gespräche als Aktivierung verstehen. Änderungen gelten beim nächsten Aktivieren.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.disabled(model.wakeEnabled || model.isWorking)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -92,7 +104,7 @@ struct AssistantView: View {
                                 .disabled(model.isWorking)
                         }
                     }
-                    Text(model.personalWakeReady ? "Persönliches Klangmuster aktiv · lokal auf diesem Mac." : "Dreimal nur „Hey Friday“ einsprechen. Klangmuster-Erkennung ist eine Testfunktion.")
+                    Text(model.personalWakeReady ? "Klangmuster gespeichert · Aktivierung unter Wake-Erkennung erweitern ist optional." : "Dreimal nur „Hey Friday“ einsprechen. Klangmuster-Erkennung ist eine Testfunktion.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
@@ -146,6 +158,8 @@ struct AssistantView: View {
                 DisclosureGroup("Orbs zuordnen · 9 Animationen", isExpanded: $showsOrbGallery) {
                     OrbGallery()
                 }
+                HomeAssistantSettingsView(settings: model.homeSettings, disabled: model.isWorking)
+                Button("Gesprächskontext löschen") { Task { await model.clearConversation() } }.disabled(model.isWorking)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Gemini API-Schlüssel").font(.headline)

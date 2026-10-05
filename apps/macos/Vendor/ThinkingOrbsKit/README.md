@@ -4,7 +4,7 @@ Upstream: [Jakubantalik/Libraries.dev](https://github.com/Jakubantalik/Libraries
 Revision: `d06640864eb4adc2fe240f899a44ee6210779782`.
 MIT, copyright 2026 Jakub Antalik; see [LICENSE](LICENSE).
 
-The ten files under `Sources/ThinkingOrbsKit` are unchanged upstream source.
+The source retains the pinned upstream geometry. Local change: ThinkingOrb uses a minimum animation interval of 1/24 s to reduce Friday CPU/GPU work.
 The local manifest includes only the library. Upstream golden/performance tests
 and their web-engine fixtures are available in the linked repository.
 No Pro presets, Studio exports or paid content are included.
