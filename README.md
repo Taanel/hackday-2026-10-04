@@ -78,6 +78,13 @@ sperren diese Aktivierung. Ohne eingeschaltete Option läuft der Sensor nicht.
 Die erste Version ist experimentell; echte Erkennungsraten müssen auf der eigenen
 Unterlage geprüft werden. [Technik, Grenzen und Recherche](docs/chassis-activation.md).
 
+Optional: **Sprache → Klatschen & Schnipsen** bietet getrennte Aktivierung durch
+zweimal Klatschen oder Schnipsen sowie einen 30-Sekunden-Test ohne Befehle.
+Lokal und ohne API-Kosten, mit derselben Mikrofonspur; keine Modellinferenz im
+ruhigen Idle. Zweimal kurz hintereinander, kurz pausieren und sprechen.
+Die Erkennungsrate mit deinen Händen bitte zunächst im Testmodus prüfen.
+Gehäuseimpulse über **0,060 g** werden ab Build 16 grundsätzlich verworfen.
+
 1. „Friday öffnen“ im Menüleisten-Menü wählen und auf „Bereit · Laya und Hex lokal“ warten.
 2. „Hey Friday“ einschalten und macOS-Mikrofonzugriff erlauben.
    Das Setup verwendet Moonshine Small Streaming Deutsch mit „Hey Friday“ und „Hi Friday“ als Schlüsselphrasen.

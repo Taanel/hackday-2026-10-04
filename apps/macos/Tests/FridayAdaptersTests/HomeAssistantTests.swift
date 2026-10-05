@@ -95,6 +95,84 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
         #expect(HomeProtocol.posts.count == 1)
     }
 
+    @Test(arguments: ["Küche Licht aus", "Küche-Licht aus", "Küchenlicht aus"])
+    func kitchenRoomCommandsSkipUnavailableLightsAndReportPartialState(text: String) async throws {
+        let fixtures = #"[{"entity_id":"light.island_01","state":"on","attributes":{"friendly_name":"Kücheninsel 01"}},{"entity_id":"light.island_02","state":"on","attributes":{"friendly_name":"Kücheninsel 02"}},{"entity_id":"light.hall_01","state":"unavailable","attributes":{"friendly_name":"Hall Spot 01"}},{"entity_id":"light.office","state":"on","attributes":{"friendly_name":"Büro"}}]"#
+        HomeProtocol.reset(fixtures: fixtures)
+        let kitchen = HomeAssistantArea(name: "Küche", entityIDs: ["light.island_01", "light.island_02", "light.hall_01"])
+        let (directory, client, session) = try context(areas: [kitchen])
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        let action = try #require(HomeAssistantCommandParser.parse(text))
+        let result = try await client.execute(action)
+        #expect(HomeProtocol.posts.count == 1)
+        let body = try JSONSerialization.jsonObject(with: HomeProtocol.posts[0].httpBody!) as! [String: Any]
+        #expect(Set(body["entity_id"] as! [String]) == ["light.island_01", "light.island_02"])
+        #expect(result.contains("2 von 3 Lampen"))
+        #expect(result.contains("übersprungen"))
+        #expect(result.contains("Hall Spot 01"))
+        #expect(result.contains("light.hall_01"))
+        #expect(!result.hasPrefix("Home Assistant meldet: „Küche“ aus"))
+    }
+
+    @Test func allUnavailableRoomLightsDoNotSendAServiceRequest() async throws {
+        let fixtures = #"[{"entity_id":"light.hall_01","state":"unavailable","attributes":{"friendly_name":"Hall Spot 01"}},{"entity_id":"light.hall_02","state":"unknown","attributes":{"friendly_name":"Hall Spot 02"}}]"#
+        HomeProtocol.reset(fixtures: fixtures)
+        let (directory, client, session) = try context(areas: [.init(name: "Küche", entityIDs: ["light.hall_01", "light.hall_02"])])
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        do {
+            _ = try await client.execute(.init(target: "Küche Licht", operation: .turnOff))
+            Issue.record("Ein vollständig nicht verfügbarer Raum darf keine Erfolgsmeldung liefern.")
+        } catch {
+            #expect(error.localizedDescription.contains("Keine erreichbaren Lampen"))
+            #expect(error.localizedDescription.contains("Hall Spot 01"))
+        }
+        #expect(HomeProtocol.posts.isEmpty)
+    }
+
+    @Test func explicitUnavailableLampIsNotSilentlySkipped() async throws {
+        HomeProtocol.reset(fixtures: #"[{"entity_id":"light.hall_01","state":"unavailable","attributes":{"friendly_name":"Hall Spot 01"}}]"#)
+        let (directory, client, session) = try context(areas: [.init(name: "Küche", entityIDs: ["light.hall_01"])])
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        await #expect(throws: AdapterError.self) { try await client.execute(.init(target: "light.hall_01", operation: .turnOff)) }
+        #expect(HomeProtocol.posts.isEmpty)
+    }
+
+    @Test func linkingCompoundPrefersAnExactCatalogRoomBeforeRemovingASuffix() throws {
+        let entities = try JSONDecoder().decode([HomeAssistantEntity].self, from: Data(#"[{"entity_id":"light.a","state":"on","attributes":{"friendly_name":"A"}},{"entity_id":"light.b","state":"on","attributes":{"friendly_name":"B"}}]"#.utf8))
+        let areas: [HomeAssistantArea] = [.init(name: "Küche", entityIDs: ["light.a"]), .init(name: "Küchen", entityIDs: ["light.b"])]
+        let result = try #require(try HomeAssistantClient.roomLights(.init(target: "Küchenlicht", operation: .turnOff), areas: areas, entities: entities))
+        #expect(result.entities.map(\.id) == ["light.b"])
+    }
+
+    @Test func domainQualifiedDeviceNamesSelectOnlyTheRequestedDomain() throws {
+        let entities = try JSONDecoder().decode([HomeAssistantEntity].self, from: Data(#"[{"entity_id":"light.a","state":"on","attributes":{"friendly_name":"Steckdose"}},{"entity_id":"switch.a","state":"on","attributes":{"friendly_name":"Steckdose"}},{"entity_id":"light.b","state":"on","attributes":{"friendly_name":"Lampe"}},{"entity_id":"switch.b","state":"on","attributes":{"friendly_name":"Lampe"}}]"#.utf8))
+        #expect(try HomeAssistantClient.resolve(.init(target: "Steckdose", operation: .turnOff), in: entities).id == "switch.a")
+        #expect(try HomeAssistantClient.resolve(.init(target: "Lampe", operation: .turnOff), in: entities).id == "light.b")
+    }
+
+    @Test func areaQualifiedGenericDevicesUseRegistryMembership() async throws {
+        let fixtures = #"[{"entity_id":"switch.plug_a","state":"on","attributes":{"friendly_name":"Steckdose"}},{"entity_id":"switch.plug_b","state":"on","attributes":{"friendly_name":"Steckdose"}},{"entity_id":"climate.thermostat_a","state":"heat","attributes":{"friendly_name":"Thermostat","supported_features":1,"min_temp":7,"max_temp":30,"target_temp_step":0.5}},{"entity_id":"climate.thermostat_b","state":"heat","attributes":{"friendly_name":"Thermostat","supported_features":1,"min_temp":7,"max_temp":30,"target_temp_step":0.5}}]"#
+        HomeProtocol.reset(fixtures: fixtures)
+        let areas: [HomeAssistantArea] = [.init(name: "Küche", entityIDs: ["switch.plug_a", "climate.thermostat_a"]), .init(name: "Büro", entityIDs: ["switch.plug_b", "climate.thermostat_b"])]
+        let (directory, client, session) = try context(areas: areas)
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        for text in ["Schalte die Steckdose in der Küche aus", "Stelle die Heizung im Büro auf 21,5 Grad"] {
+            _ = try await client.execute(try #require(HomeAssistantCommandParser.parse(text)))
+        }
+        #expect(HomeProtocol.posts.map { $0.url!.path } == ["/api/services/switch/turn_off", "/api/services/climate/set_temperature"])
+        let bodies = try HomeProtocol.posts.map { try JSONSerialization.jsonObject(with: $0.httpBody!) as! [String: Any] }
+        #expect(bodies[0]["entity_id"] as? String == "switch.plug_a")
+        #expect(bodies[1]["entity_id"] as? String == "climate.thermostat_b")
+    }
+
+    @Test func duplicateSceneNamesRemainAmbiguousAndDoNotAct() async throws {
+        HomeProtocol.reset(fixtures: #"[{"entity_id":"scene.old","state":"unknown","attributes":{"friendly_name":"Büro Nachtlicht"}},{"entity_id":"scene.new","state":"unknown","attributes":{"friendly_name":"Büro Nachtlicht"}}]"#)
+        let (directory, client, session) = try context()
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        await #expect(throws: AdapterError.self) { try await client.execute(.init(target: "Büro Nachtlicht", operation: .activateScene)) }
+        #expect(HomeProtocol.posts.isEmpty)
+    }
+
     @Test func explicitDeviceCommandDoesNotExpandToTheEntireRoom() async throws {
         HomeProtocol.reset(fixtures: roomFixture)
         let (directory, client, session) = try context(areas: [room])

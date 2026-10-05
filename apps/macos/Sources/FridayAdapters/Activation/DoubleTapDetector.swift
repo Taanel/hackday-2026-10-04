@@ -8,6 +8,7 @@ public struct DoubleTapDetector: Sendable {
              longMovement, strongImpact, missingSecondTap
     }
     public var threshold: Double
+    public var maximumStrength: Double
     public private(set) var acceptedTaps = 0
     public private(set) var rejectedPulses = 0
     public private(set) var ignoredAftershocks = 0
@@ -27,11 +28,13 @@ public struct DoubleTapDetector: Sendable {
     private var secondTap: Double?
     private var cooldownUntil = 0.0
 
-    public init(threshold: Double = 0.03) { self.threshold = threshold }
+    public init(threshold: Double = 0.03, maximumStrength: Double = 0.06) {
+        self.threshold = threshold; self.maximumStrength = maximumStrength
+    }
 
     public mutating func reset() {
-        let value = threshold
-        self = DoubleTapDetector(threshold: value)
+        let value = threshold, maximum = maximumStrength
+        self = DoubleTapDetector(threshold: value, maximumStrength: maximum)
     }
 
     public mutating func accept(time: Double, x: Double, y: Double, z: Double,
@@ -73,7 +76,7 @@ public struct DoubleTapDetector: Sendable {
             let duration = time - start
             lastStrength = pulsePeak
             // A movement or long ringing signal is not a short chassis tap.
-            if !pulseBlocked, duration <= 0.09, pulsePeak < 1.5 {
+            if !pulseBlocked, duration <= 0.09, pulsePeak <= maximumStrength + 1e-9 {
                 if start - lastTap < 0.10 {
                     // A chassis rings after a tap. It is neither a new tap nor
                     // grounds for throwing away the already recognized one.
@@ -86,7 +89,7 @@ public struct DoubleTapDetector: Sendable {
                 }
             } else {
                 rejectedPulses += 1; firstTap = nil; secondTap = nil
-                lastEvent = pulseBlocked ? blockedEvent : pulsePeak >= 1.5 ? .strongImpact : .longMovement
+                lastEvent = pulseBlocked ? blockedEvent : pulsePeak > maximumStrength + 1e-9 ? .strongImpact : .longMovement
             }
             pulseStart = nil; pulsePeak = 0; pulseBlocked = false
         }

@@ -54,13 +54,43 @@ struct VoiceSettingsView: View {
                     Text("\(model.chassisRejected) Impulse ignoriert · \(model.chassisAftershocks) Nachschwinger")
                         .font(.caption).foregroundStyle(.secondary)
                     LabeledContent("Erkennungsschwelle") {
-                        Slider(value: $model.chassisThreshold, in: 0.005...0.35, step: 0.005).frame(maxWidth: 200)
+                        Slider(value: $model.chassisThreshold, in: 0.005...0.055, step: 0.005).frame(maxWidth: 200)
                         Text(String(format: "%.3f g", model.chassisThreshold)).monospacedDigit()
                     }
                     Text("Kleiner = empfindlicher. Bei verpassten leichten Tipps schrittweise senken, etwa auf 0,020 g. Letzter Impuls: \(String(format: "%.3f g", model.chassisStrength)) · aktive Schwelle: \(String(format: "%.3f g", model.chassisEffectiveThreshold)). Die aktive Schwelle berücksichtigt das Sensorrauschen.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Text("Stöße über 0,060 g werden immer ignoriert, etwa beim Anheben oder Absetzen des MacBooks.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            Section("Klatschen & Schnipsen") {
+                Toggle("Durch zweimal Klatschen sprechen", isOn: Binding(get: { model.clapEnabled }, set: { model.setSoundGestures(clap: $0, snap: model.snapEnabled) }))
+                    .disabled(model.soundTesting)
+                Toggle("Durch zweimal Schnipsen sprechen", isOn: Binding(get: { model.snapEnabled }, set: { model.setSoundGestures(clap: model.clapEnabled, snap: $0) }))
+                    .disabled(model.soundTesting)
+                Text("Zweimal kurz hintereinander, dann sprechen. Lokal und kostenlos. Das Mikrofon bleibt dafür auch ohne Hey Friday aktiv; nur passende Geräuschpaare werden vom Modell geprüft.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(model.soundStatus).font(.caption).textSelection(.enabled)
+                DisclosureGroup("Test & Empfindlichkeit") {
+                    Button(model.soundTesting ? "Test beenden" : "30 Sekunden testen", systemImage: "hands.clap") {
+                        if model.soundTesting { model.finishSoundTest() } else { model.testSoundGestures() }
+                    }
+                    Text("\(model.soundClaps) Doppelklatscher · \(model.soundSnaps) Doppelschnipser · \(model.soundAttempts) geprüfte Paare")
+                        .font(.caption).monospacedDigit()
+                    Text("Der Test startet keine Befehle. Erst normal sprechen und tippen, dann zweimal klatschen oder schnipsen.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    LabeledContent("Mindestpegel") {
+                        Slider(value: $model.soundMinimumRMS, in: 0.001...0.025, step: 0.001).frame(maxWidth: 200)
+                        Text(String(format: "%.3f", model.soundMinimumRMS)).monospacedDigit()
+                    }.disabled(model.clapEnabled || model.snapEnabled || model.soundTesting)
+                    LabeledContent("Erkennungssicherheit") {
+                        Slider(value: $model.soundConfidence, in: 0.4...0.9, step: 0.05).frame(maxWidth: 200)
+                        Text(model.soundConfidence, format: .percent.precision(.fractionLength(0))).monospacedDigit()
+                    }.disabled(model.clapEnabled || model.snapEnabled || model.soundTesting)
+                    Text("Kleiner = empfindlicher. Zuletzt erkannt: \(Int(model.soundScore * 100)) %. Zum Ändern Erkennung und Test ausschalten.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }.disabled(!model.isReady || model.isWorking)
             Section("Aufnahme & Gespräch") {
                 Toggle("Kurze Befehle schneller abschließen", isOn: $model.fastEndpoint).disabled(model.isWorking)
                 Text("500 ms Sprechpause. Für längere Denkpausen ausschalten.").font(.caption).foregroundStyle(.secondary)

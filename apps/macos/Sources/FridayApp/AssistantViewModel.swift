@@ -73,7 +73,7 @@ import FridayAdapters
     @Published private(set) var chassisStrength = 0.0
     @Published private(set) var chassisEffectiveThreshold = 0.0
     @Published private(set) var chassisDiagnostic = "Warte auf zwei Tipps."
-    @Published var chassisThreshold = UserDefaults.standard.object(forKey: "Friday.chassisThreshold") as? Double ?? 0.03 {
+    @Published var chassisThreshold = min(0.055, UserDefaults.standard.object(forKey: "Friday.chassisThreshold") as? Double ?? 0.03) {
         didSet {
             chassis.threshold = chassisThreshold
             UserDefaults.standard.set(chassisThreshold, forKey: "Friday.chassisThreshold")
@@ -81,6 +81,22 @@ import FridayAdapters
     }
     private let chassis = ChassisActivation()
     private var chassisTestTask: Task<Void, Never>?
+    @Published private(set) var clapEnabled = false
+    @Published private(set) var snapEnabled = false
+    @Published private(set) var soundTesting = false
+    @Published private(set) var soundStatus = "Optional · ausgeschaltet"
+    @Published private(set) var soundClaps = 0
+    @Published private(set) var soundSnaps = 0
+    @Published private(set) var soundAttempts = 0
+    @Published private(set) var soundScore = 0.0
+    @Published var soundMinimumRMS = UserDefaults.standard.object(forKey: "Friday.soundMinimumRMS") as? Double ?? 0.004 {
+        didSet { UserDefaults.standard.set(soundMinimumRMS, forKey: "Friday.soundMinimumRMS") }
+    }
+    @Published var soundConfidence = UserDefaults.standard.object(forKey: "Friday.soundConfidence") as? Double ?? 0.65 {
+        didSet { UserDefaults.standard.set(soundConfidence, forKey: "Friday.soundConfidence") }
+    }
+    private var soundTestTask: Task<Void, Never>?
+    private var soundRestorePending = false
 
     private let router: AssistantRouter
     private let speech: any SpeechOutput
@@ -145,7 +161,7 @@ import FridayAdapters
             case .warmingUp: "Sensor wird kurz eingemessen · danach erneut tippen."
             case .cooldown: "Kurze Pause nach der letzten Aktivierung."
             case .longMovement: "Ignoriert: länger anhaltende Bewegung statt kurzem Tipp."
-            case .strongImpact: "Ignoriert: sehr starker Stoß. Leichter tippen."
+            case .strongImpact: "Ignoriert: Stoß über 0,060 g. Leichter tippen."
             case .missingSecondTap: "Ein Tipp erkannt · zweiter Tipp fehlte im Zeitfenster."
             }
         }
@@ -193,6 +209,68 @@ import FridayAdapters
         if chassisEnabled {
             do { try chassis.start(); chassisStatus += " · Aktivierung wieder an" }
             catch { chassisEnabled = false; chassisStatus = error.localizedDescription }
+        }
+    }
+
+    private var soundOptions: SoundActivationOptions {
+        SoundActivationOptions(gestures: Set((clapEnabled ? [SoundGesture.clap] : []) + (snapEnabled ? [.snap] : [])),
+            minimumRMS: soundMinimumRMS, confidence: soundConfidence)
+    }
+    var backgroundListening: Bool { wakeEnabled || clapEnabled || snapEnabled || soundTesting }
+    var activationStatus: String {
+        var methods: [String] = []
+        if wakeEnabled { methods.append(allowBareWake ? "Hey/Hi Friday oder Friday" : "Hey/Hi Friday") }
+        if clapEnabled || soundTesting { methods.append("Doppeltklatschen") }
+        if snapEnabled || soundTesting { methods.append("Doppelschnipsen") }
+        return methods.isEmpty ? "Bereit · lokal" : "Höre auf \(methods.joined(separator: ", ")) · lokal"
+    }
+    func setSoundGestures(clap: Bool, snap: Bool) {
+        guard !shuttingDown, isReady, !isWorking, !soundTesting, let voice else { return }
+        isWorking = true
+        let options = SoundActivationOptions(gestures: Set((clap ? [SoundGesture.clap] : []) + (snap ? [.snap] : [])),
+            minimumRMS: soundMinimumRMS, confidence: soundConfidence)
+        microphoneTask = Task {
+            defer { if !isRecording { isWorking = false } }
+            do {
+                try await voice.setSoundOptions(options)
+                clapEnabled = clap; snapEnabled = snap
+                UserDefaults.standard.set(clap, forKey: "Friday.clapEnabled")
+                UserDefaults.standard.set(snap, forKey: "Friday.snapEnabled")
+                soundStatus = clap || snap ? "Geräuschaktivierung läuft lokal · Mikrofon aktiv" : "Optional · ausgeschaltet"
+                phase = backgroundListening ? .listening : .idle; status = activationStatus
+            } catch { soundStatus = error.localizedDescription }
+        }
+    }
+    func testSoundGestures() {
+        guard !shuttingDown, isReady, !isWorking, !soundTesting, let voice else { return }
+        isWorking = true
+        microphoneTask = Task {
+            defer { if !isRecording { isWorking = false } }
+            do {
+                try await voice.setSoundOptions(SoundActivationOptions(gestures: [.clap, .snap], testOnly: true,
+                    minimumRMS: soundMinimumRMS, confidence: soundConfidence))
+                soundClaps = 0; soundSnaps = 0; soundAttempts = 0; soundScore = 0
+                soundTesting = true; soundStatus = "30 Sekunden testen · zählt Geräusche, startet keine Befehle"
+                soundTestTask = Task {
+                    do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                    finishSoundTest()
+                }
+            } catch { soundStatus = error.localizedDescription }
+        }
+    }
+    func finishSoundTest() {
+        soundTestTask?.cancel(); soundTestTask = nil
+        guard soundTesting, !shuttingDown, let voice else { return }
+        soundTesting = false
+        soundStatus = "Test beendet · \(soundClaps) Doppelklatscher · \(soundSnaps) Doppelschnipser"
+        if isWorking || isRecording { soundRestorePending = true; return }
+        isWorking = true
+        microphoneTask = Task {
+            defer { if !isRecording { isWorking = false } }
+            do {
+                try await voice.setSoundOptions(soundOptions)
+                phase = backgroundListening ? .listening : .idle; status = activationStatus
+            } catch { soundStatus = error.localizedDescription }
         }
     }
 
@@ -349,12 +427,29 @@ import FridayAdapters
                 if OrbWindowActivity.shared.active { model?.microphoneLevel = level }
             }
             model.voice = voice
+            voice.onSoundDiagnostics = { [weak model] diagnostic in
+                guard let model, model.soundTesting || OrbWindowActivity.shared.active else { return }
+                model.soundClaps = diagnostic.claps; model.soundSnaps = diagnostic.snaps
+                model.soundAttempts = diagnostic.attempts; model.soundScore = diagnostic.confidence
+                model.soundStatus = diagnostic.message
+            }
+            voice.onSoundError = { [weak model] error in
+                guard let model else { return }
+                model.clapEnabled = false; model.snapEnabled = false; model.soundTesting = false
+                model.soundTestTask?.cancel(); model.soundTestTask = nil
+                model.soundRestorePending = false
+                model.soundStatus = error.localizedDescription
+                if !model.isWorking {
+                    model.phase = model.backgroundListening ? .listening : .idle
+                    model.status = model.activationStatus
+                }
+            }
             voice.onPhase = { [weak model] phase in
                 guard let model else { return }
                 model.phase = phase
                 model.isRecording = phase == .recording
                 model.isWorking = phase == .recording
-                if phase == .listening { model.status = model.allowBareWake ? "Höre auf „Hey Friday“, „Hi Friday“ oder „Friday“ · lokal" : "Höre auf „Hey Friday“ oder „Hi Friday“ · lokal" }
+                if phase == .listening { model.status = model.activationStatus }
                 else if phase == .recording {
                     model.clearTranscript()
                     model.dismissWeatherOverlay()
@@ -365,8 +460,12 @@ import FridayAdapters
             voice.onFollowUpTimeout = { [weak model] in
                 guard let model else { return }
                 model.isRecording = false; model.isWorking = false
-                model.phase = model.wakeEnabled ? .listening : .idle
+                model.phase = model.backgroundListening ? .listening : .idle
                 model.status = "Rückfrage abgelaufen · wieder Wake-Wort nötig"
+                if model.soundRestorePending {
+                    let token = model.generation
+                    Task { await model.rearmVoice(token: token) }
+                }
             }
             voice.onWakeRecovery = { [weak model] in model?.status = "Wake-Erkennung startet neu …" }
             voice.onError = { [weak model] error in
@@ -400,6 +499,9 @@ import FridayAdapters
                 isReady = true; phase = .idle
                 status = "Bereit · Laya und Hex lokal"
                 if UserDefaults.standard.bool(forKey: "Friday.chassisEnabled") { setChassisEnabled(true) }
+                if UserDefaults.standard.bool(forKey: "Friday.clapEnabled") || UserDefaults.standard.bool(forKey: "Friday.snapEnabled") {
+                    setSoundGestures(clap: UserDefaults.standard.bool(forKey: "Friday.clapEnabled"), snap: UserDefaults.standard.bool(forKey: "Friday.snapEnabled"))
+                }
             } catch is CancellationError {}
             catch { phase = .failed; status = "Modellstart fehlgeschlagen"; response = error.localizedDescription }
             startupTask = nil
@@ -627,7 +729,10 @@ import FridayAdapters
 
     private func rearmVoice(token: UUID) async {
         guard generation == token, !shuttingDown else { return }
-        do { try await voice?.rearm() }
+        do {
+            if soundRestorePending { soundRestorePending = false; try await voice?.setSoundOptions(soundOptions) }
+            else { try await voice?.rearm() }
+        }
         catch {
             guard generation == token, !shuttingDown else { return }
             wakeEnabled = false; try? await voice?.setEnabled(false)
@@ -672,10 +777,14 @@ import FridayAdapters
                 guard generation == token, !shuttingDown else { return }
                 if !wakeEnabled { try? await voice?.setEnabled(false) }
                 await voice?.cancel()
+                if soundRestorePending {
+                    soundRestorePending = false
+                    try? await voice?.setSoundOptions(soundOptions)
+                }
                 guard generation == token, !shuttingDown else { return }
                 isRecording = false; isWorking = false
-                if !wakeEnabled { phase = .idle }
-                status = wakeEnabled ? "Höre auf „Hey Friday“ oder „Hi Friday“ · lokal" : "Abgebrochen"
+                if !backgroundListening { phase = .idle }
+                status = backgroundListening ? activationStatus : "Abgebrochen"
                 task = nil
             }
         }
@@ -688,7 +797,7 @@ import FridayAdapters
         microphoneTask?.cancel()
         microphoneTask = Task {
             defer { if !isRecording { isWorking = false } }
-            do { try await voice?.setEnabled(value); if !value { phase = .idle; status = "Bereit · lokal" } }
+            do { try await voice?.setEnabled(value); if !value { phase = backgroundListening ? .listening : .idle; status = activationStatus } }
             catch { wakeEnabled = false; phase = .failed; response = error.localizedDescription }
         }
     }
@@ -712,6 +821,7 @@ import FridayAdapters
         dismissWeatherOverlay()
         shuttingDown = true
         chassisTestTask?.cancel(); chassis.stop()
+        soundTestTask?.cancel(); soundTestTask = nil
         clearTranscript()
         clearTrainingFiles()
         generation = UUID()

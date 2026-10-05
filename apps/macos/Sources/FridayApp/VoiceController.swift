@@ -27,12 +27,18 @@ extension AudioInput: VoiceAudioInput {}
     var onFollowUpTimeout: (() -> Void)?
     var onWakeTranscript: ((String) -> Void)?
     var onAudioLevel: ((Double) -> Void)?
+    var onSoundDiagnostics: ((SoundGestureDiagnostics) -> Void)?
+    var onSoundError: ((any Error) -> Void)?
     private var levelSamples = 0
     private var levelEnergy = 0.0
     private(set) var followingReply = false
     private var followUpTimeout: Task<Void, Never>?
     private let audio: any VoiceAudioInput
     private let wake: MoonshineWakeWordDetector
+    private let sound: any SoundActivationInput
+    private var awaitingSound = false
+    private var soundOrigin = 0
+    private var needsBackgroundAudio: Bool { enabled || sound.isEnabled }
     private var enabled = false
     private var closed = false
     private var awaitingWake = false
@@ -48,31 +54,74 @@ extension AudioInput: VoiceAudioInput {}
     private var recovering = false
     private var recoveries: [Date] = []
 
-    init(wake: MoonshineWakeWordDetector, audio: any VoiceAudioInput = AudioInput()) {
-        self.wake = wake; self.audio = audio
+    init(wake: MoonshineWakeWordDetector, audio: any VoiceAudioInput = AudioInput(), sound: any SoundActivationInput = SoundGestureActivation()) {
+        self.wake = wake; self.audio = audio; self.sound = sound
+        sound.onDiagnostics = { [weak self] report in self?.onSoundDiagnostics?(report) }
+        sound.onError = { [weak self] error in
+            guard let self else { return }
+            self.sound.stop(); self.awaitingSound = false
+            if !self.enabled, !self.audio.isRecording { self.audio.stop() }
+            self.onSoundError?(error)
+        }
+        sound.onActivate = { [weak self] detection in self?.detectedSound(detection) }
         audio.onFrames = { [weak self] samples in
-            guard let self, self.awaitingWake else { return }
+            guard let self, !self.closed else { return }
+            if self.awaitingSound, !self.audio.isRecording { self.sound.accept(samples) }
+            guard self.awaitingWake || self.awaitingSound else { return }
             self.levelSamples += samples.count
             self.levelEnergy += samples.reduce(0) { $0 + Double($1) * Double($1) }
             if self.levelSamples >= 16000 {
                 self.onAudioLevel?(sqrt(self.levelEnergy / Double(self.levelSamples)))
                 self.levelSamples = 0; self.levelEnergy = 0
             }
-            self.frameContinuation?.yield(samples)
+            if self.awaitingWake { self.frameContinuation?.yield(samples) }
         }
         audio.onRecordingEnded = { [weak self] file in
             guard let self else { return }
             self.followUpTimeout?.cancel(); self.followUpTimeout = nil; self.followingReply = false
-            if !self.enabled { self.audio.stop() }
+            if !self.needsBackgroundAudio { self.audio.stop() }
             self.onCommand?(file, self.wakeTriggered)
         }
         audio.onError = { [weak self] error in self?.onError?(error) }
     }
 
+    func setSoundOptions(_ options: SoundActivationOptions) async throws {
+        guard !closed else { throw CancellationError() }
+        await suspend()
+        try Task.checkCancellation()
+        guard !closed else { throw CancellationError() }
+        do { try await sound.configure(options); try await rearm() }
+        catch {
+            // Failed microphone startup must not leave gestures enabled behind
+            // an unchanged settings toggle, even when manual capture later works.
+            sound.stop(); awaitingSound = false; onSoundError?(error)
+            try? await rearm(); throw error
+        }
+    }
+
+    private func detectedSound(_ detection: SoundGestureDetection) {
+        guard !closed, awaitingSound, sound.isEnabled, !startingRecording, !audio.isRecording else { return }
+        let from = soundOrigin + detection.commandStartSample
+        guard from >= soundOrigin, from <= audio.totalSamples, audio.totalSamples - from <= 128_000 else { return }
+        awaitingSound = false; awaitingWake = false; startingRecording = true
+        wakeTriggered = false
+        // Capture already buffered speech after the second sound, including
+        // syllables spoken while the local classifier was finishing.
+        audio.beginRecording(fromSample: from)
+        onPhase?(.recording)
+        let token = generation
+        Task {
+            guard !self.closed, self.generation == token, self.audio.isRecording else {
+                self.startingRecording = false; return
+            }
+            await self.suspend(); self.startingRecording = false
+        }
+    }
+
     func setEnabled(_ value: Bool) async throws {
         guard !closed else { throw CancellationError() }
         enabled = value
-        if !value { await suspend(); if !audio.isRecording { audio.stop() }; return }
+        if !value { await suspend(); if !audio.isRecording { try await rearm() }; return }
         do {
         let token = generation
         try await wake.start()
@@ -102,12 +151,15 @@ extension AudioInput: VoiceAudioInput {}
         }
         try await audio.start()
         try Task.checkCancellation()
-        guard enabled, generation == token else { audio.stop(); return }
+        guard enabled, generation == token else {
+            if !needsBackgroundAudio, !audio.isRecording { audio.stop() }
+            return
+        }
         try await rearm()
         } catch {
             enabled = false
-            audio.stop()
             await suspend()
+            try? await rearm()
             throw error
         }
     }
@@ -115,11 +167,12 @@ extension AudioInput: VoiceAudioInput {}
     func rearm() async throws {
         try Task.checkCancellation()
         guard !closed else { throw CancellationError() }
-        guard enabled, !audio.isRecording else { if !audio.isRecording { audio.stop() }; return }
+        guard needsBackgroundAudio, !audio.isRecording else { if !audio.isRecording { audio.stop() }; return }
         let token = generation
         try await audio.start()
         try Task.checkCancellation()
-        guard enabled, !closed, generation == token, !audio.isRecording else { return }
+        guard needsBackgroundAudio, !closed, generation == token, !audio.isRecording else { return }
+        if enabled {
         try await wake.start()
         try Task.checkCancellation()
         guard enabled, !closed, generation == token, !audio.isRecording else { return }
@@ -142,6 +195,9 @@ extension AudioInput: VoiceAudioInput {}
                 }
             }
         }
+        }
+        soundOrigin = audio.totalSamples
+        sound.resume(); awaitingSound = sound.isEnabled
         onPhase?(.listening)
     }
 
@@ -152,7 +208,7 @@ extension AudioInput: VoiceAudioInput {}
         recoveries = recoveries.filter { Date().timeIntervalSince($0) < 60 }
         guard recoveries.count < 3 else {
             enabled = false
-            await suspend(); audio.stop(); onError?(error)
+            await suspend(); try? await rearm(); onError?(error)
             return
         }
         recoveries.append(Date())
@@ -166,7 +222,7 @@ extension AudioInput: VoiceAudioInput {}
             try await rearm()
         } catch {
             guard enabled, !closed else { return }
-            enabled = false; audio.stop(); onError?(error)
+            enabled = false; try? await rearm(); onError?(error)
         }
     }
 
@@ -184,7 +240,7 @@ extension AudioInput: VoiceAudioInput {}
     private func detected(_ detection: WakeDetection) async {
         guard detection.type == "wake", detection.generation == wakeGeneration,
               detection.transportSession == wakeSession,
-              enabled, awaitingWake, !audio.isRecording else { return }
+              enabled, awaitingWake, !startingRecording, !audio.isRecording else { return }
         awaitingWake = false
         recoveries.removeAll()
         let from = detection.startSample.map { wakeOrigin + $0 } ?? max(0, audio.totalSamples - 32_000)
@@ -203,7 +259,7 @@ extension AudioInput: VoiceAudioInput {}
         let token = generation
         // Start capture before waiting for the worker's final decode/pause ACK.
         // A click must not lose the first syllables or accept another wake.
-        awaitingWake = false
+        awaitingWake = false; awaitingSound = false; sound.suspend()
         do {
             try await audio.start()
             try Task.checkCancellation()
@@ -236,9 +292,9 @@ extension AudioInput: VoiceAudioInput {}
     }
 
     func finishRecording() throws {
-        defer { if !enabled { audio.stop() } }
+        defer { if !needsBackgroundAudio { audio.stop() } }
         if let file = try audio.finishRecording() {
-            if !enabled { audio.stop() }
+            if !needsBackgroundAudio { audio.stop() }
             onCommand?(file, wakeTriggered)
         }
     }
@@ -246,6 +302,7 @@ extension AudioInput: VoiceAudioInput {}
     func suspend() async {
         followUpTimeout?.cancel(); followUpTimeout = nil; followingReply = false
         awaitingWake = false
+        awaitingSound = false; sound.suspend()
         frameContinuation?.finish(); frameContinuation = nil
         feedTask?.cancel(); feedTask = nil
         try? await wake.pause()
@@ -255,12 +312,13 @@ extension AudioInput: VoiceAudioInput {}
         generation = UUID()
         audio.cancelRecording()
         await suspend()
-        if enabled { try? await rearm() } else { audio.stop() }
+        if needsBackgroundAudio { try? await rearm() } else { audio.stop() }
     }
 
     func shutdown() async {
         followUpTimeout?.cancel(); followUpTimeout = nil; followingReply = false
         closed = true; enabled = false; generation = UUID()
+        awaitingSound = false; sound.stop()
         audio.stop()
         frameContinuation?.finish()
         feedTask?.cancel(); eventTask?.cancel()

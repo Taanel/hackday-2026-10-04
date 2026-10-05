@@ -8,13 +8,13 @@
     <key>CFBundleExecutable</key><string>Friday</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>15</string>
+    <key>CFBundleVersion</key><string>16</string>
     <key>NSLocalNetworkUsageDescription</key><string>Friday verbindet sich auf deinen Befehl mit deinem lokalen Home Assistant, um Geräte zu steuern.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>LSUIElement</key><true/>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>NSHighResolutionCapable</key><true/>
-    <key>NSMicrophoneUsageDescription</key><string>Friday verwendet das Mikrofon für Diktat und die Wake-Phrasen „Hey Friday“, „Hi Friday“ sowie optional „Friday“.</string>
+    <key>NSMicrophoneUsageDescription</key><string>Friday verwendet das Mikrofon für Diktat, die Wake-Phrasen „Hey Friday“ und „Hi Friday“ sowie optional „Friday“, Doppeltklatschen und Doppelschnipsen.</string>
     <key>NSSpeechRecognitionUsageDescription</key><string>Friday wandelt gesprochene Befehle und Diktate in Text um.</string>
     <key>NSAppleEventsUsageDescription</key><string>Friday sucht auf deinen Befehl in offenen Safari- und Terminal-Tabs und bringt den passenden Tab nach vorne.</string>
 </dict>

@@ -33,6 +33,10 @@ Eine Berechtigung des Probeprozesses ersetzt nicht die Berechtigung von Friday.
   Einstellungen bleiben erhalten. Der Regler reicht bis 0,005 g statt zuvor
   mindestens 0,040 g. Die wirksame Schwelle liegt bei mindestens siebenmal dem
   gemessenen ruhigen Sensorrauschen und wird im Test angezeigt.
+- Ab Build 16 werden Impulse über **0,060 g** immer verworfen. Die einstellbare
+  Mindestschwelle endet deshalb bei 0,055 g; frühere größere Einstellungen werden
+  darauf begrenzt. Dies verhindert starke Stöße, ist aber keine allgemeine
+  Klassifizierung jeder Anhebe-Bewegung.
 - Kurze Tipps verändern die Gravitations-Baseline nicht mehr; dadurch erzeugt
   die Filterung keinen künstlichen langen Nachlauf. Bei anhaltender Bewegung
   wird die Baseline wieder nachgeführt. Kurze Nachschwinger innerhalb 100 ms
@@ -70,17 +74,27 @@ Mehrfachimpulse, Sperrzeit und ungültige/unterbrochene Daten. Diese Tests bewei
 keine Erkennungsrate für reale Fingerbewegungen. Eine universelle Zuverlässigkeit
 oder eine gemessene Akkulaufzeit wird deshalb nicht behauptet.
 
-## Doppelschnipsen
+## Doppeltklatschen und Doppelschnipsen
 
-Apples [SoundAnalysis](https://developer.apple.com/documentation/soundanalysis)
-hat einen lokalen eingebauten Klassifikator. Auf diesem Mac enthält
-`SNClassifySoundRequest(classifierIdentifier: .version1).knownClassifications`
-die Klassen `finger_snapping`, `typing`, `typing_computer_keyboard`, `knock` und
-`tap`; das kleinste erlaubte Analysefenster ist 500 ms.
+Ab Build 16 getrennt zuschaltbar unter **Sprache → Klatschen & Schnipsen**.
+Beide Optionen sind zunächst aus. Der 30-Sekunden-Test zählt bestätigte Paare,
+startet aber keine Befehle. Anders als Gehäuse-Doppeltippen erfordert diese
+Aktivierung ein laufendes Mikrofon; Friday verwendet dafür denselben vorhandenen
+AudioInput wie Wake und Aufnahme, keine zweite Mikrofoninstanz.
 
-Das ist eine machbare alternative Eingabe. Sie benötigt eine Mikrofonspur sowie
-lokale Modellinferenz und getrennte negative Tests mit Tastatur, Sprache und
-Lautsprecherwiedergabe. Ein einfacher Lautstärke-/Doppelpeak-Trigger wäre zu
-verwechslungsanfällig. Deshalb ist in dieser ersten Version Gehäuse-Doppeltippen
-implementiert; Schnipsen wurde auf API-/Modellverfügbarkeit geprüft, aber noch
-nicht als Aktivierung freigeschaltet.
+Ein günstiger Impulsfilter erkennt zwei kurze Anstiege im Abstand 150–800 ms.
+Relativer Abfall erlaubt Nachhall über dem normalen Rauschpegel. Anschließend
+prüft Apples [SoundAnalysis-Klassifikator](https://developer.apple.com/documentation/soundanalysis/snclassifysoundrequest)
+zwei getrennte 500-ms-Ausschnitte und das gemeinsame Paar. Beide Einzelgeräusche
+müssen denselben Typ unterstützen, das gemeinsame Fenster muss die eingestellte
+Konfidenz erreichen. Sprach-/Tastaturklassen können eine Aktivierung verhindern;
+Applaus allein zählt nicht als zusätzliche Geste. Es läuft keine Modellinferenz
+im ruhigen Idle. PCM und Ergebnisse bleiben im Speicher auf dem Mac.
+
+Während Aufnahme, Befehlen und Vorlesen sind Gesten gesperrt. Verspätete
+Klassifikationen werden nach Suspend/Abbruch/Neustart des Hörens verworfen.
+Sprachbeginn nach dem zweiten Geräusch bleibt im vorhandenen Aufnahme-Ringpuffer
+erhalten, auch während der Klassifizierung. Zwischen Geräuschpaar und Befehl
+kurz pausieren. Das bekannte Modell unterstützt `clapping` und `finger_snapping`.
+Physische Erkennungsraten für die eigenen Hände sind noch nicht gemessen;
+Mindestpegel und Konfidenz lassen sich nach Beenden des Tests einstellen.

@@ -13,12 +13,112 @@ import FridayAdapters
     var recordings = 0
     var lastStartSample: Int?
     var finishedFile: URL?
-    func start() async throws {}
-    func stop() { isRecording = false }
+    var started = false
+    var startFails = false
+    func start() async throws {
+        if startFails { throw AdapterError.unavailable("Mikrofon nicht verfügbar") }
+        started = true
+    }
+    func stop() { started = false; isRecording = false }
     func beginRecording(fromSample: Int?) { isRecording = true; recordings += 1; lastStartSample = fromSample }
     func finishRecording() throws -> URL? { isRecording = false; return finishedFile }
     func cancelRecording() { isRecording = false }
     func emit() { totalSamples += 1600; onFrames?(Array(repeating: 0, count: 1600)) }
+}
+
+@MainActor private final class SoundActivationStub: SoundActivationInput {
+    var onActivate: ((SoundGestureDetection) -> Void)?
+    var onDiagnostics: ((SoundGestureDiagnostics) -> Void)?
+    var onError: ((any Error) -> Void)?
+    var isEnabled = false
+    var frames = 0
+    var suspended = true
+    func configure(_ options: SoundActivationOptions) async throws { isEnabled = !options.gestures.isEmpty }
+    func resume() { suspended = false }
+    func accept(_ samples: [Float]) { frames += samples.count }
+    func suspend() { suspended = true }
+    func stop() { suspend(); isEnabled = false }
+}
+
+@Test @MainActor func soundOnlyActivationSharesMicrophoneAndKeepsSpeechDuringClassification() async throws {
+    let audio = MicrophoneStub(), sound = SoundActivationStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker: JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio, sound: sound)
+    var stripsWake: Bool?
+    voice.onCommand = { _, strip in stripsWake = strip }
+    try await voice.setSoundOptions(SoundActivationOptions(gestures: [.clap]))
+    #expect(audio.started)
+    audio.emit(); audio.emit(); audio.emit()
+    #expect(sound.frames == 4_800)
+    sound.onActivate?(SoundGestureDetection(gesture: .clap, commandStartSample: 1_600))
+    for _ in 0..<50 where !audio.isRecording { try await Task.sleep(for: .milliseconds(5)) }
+    #expect(audio.isRecording)
+    #expect(audio.lastStartSample == 1_600)
+    audio.finishedFile = URL(fileURLWithPath: "/tmp/friday-sound-command.wav")
+    try voice.finishRecording()
+    #expect(stripsWake == false)
+    #expect(audio.started) // Sound-only listening keeps the shared mic alive.
+    await voice.shutdown()
+    #expect(!audio.started)
+}
+
+@Test @MainActor func soundActivationCannotTriggerWhileSuspendedDisabledOrClosed() async throws {
+    let audio = MicrophoneStub(), sound = SoundActivationStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker: JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio, sound: sound)
+    try await voice.setSoundOptions(SoundActivationOptions(gestures: [.snap]))
+    audio.emit()
+    await voice.suspend()
+    sound.onActivate?(SoundGestureDetection(gesture: .snap, commandStartSample: 100))
+    await Task.yield()
+    #expect(audio.recordings == 0)
+    try await voice.setSoundOptions(SoundActivationOptions())
+    #expect(!audio.started)
+    await voice.shutdown()
+    sound.onActivate?(SoundGestureDetection(gesture: .snap, commandStartSample: 100))
+    await Task.yield()
+    #expect(audio.recordings == 0)
+}
+
+@Test @MainActor func soundActivationRejectsExpiredCaptureOffset() async throws {
+    let audio = MicrophoneStub(), sound = SoundActivationStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker: JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio, sound: sound)
+    try await voice.setSoundOptions(SoundActivationOptions(gestures: [.clap]))
+    audio.totalSamples = 160_000
+    sound.onActivate?(SoundGestureDetection(gesture: .clap, commandStartSample: 100))
+    await Task.yield()
+    #expect(audio.recordings == 0)
+    await voice.shutdown()
+}
+
+@Test @MainActor func soundOnlyListeningSurvivesDisablingWakeAndCancellingCapture() async throws {
+    let audio = MicrophoneStub(), sound = SoundActivationStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker: JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio, sound: sound)
+    try await voice.setSoundOptions(SoundActivationOptions(gestures: [.snap]))
+    try await voice.setEnabled(false)
+    #expect(audio.started)
+    #expect(!sound.suspended)
+    try await voice.manualRecording()
+    #expect(sound.suspended)
+    await voice.cancel()
+    #expect(audio.started)
+    #expect(!sound.suspended)
+    await voice.shutdown()
+}
+
+@Test @MainActor func soundActivationFailedEnableCannotLeaveHiddenListeningAfterManualCapture() async throws {
+    let audio = MicrophoneStub(), sound = SoundActivationStub()
+    let voice = VoiceController(wake: MoonshineWakeWordDetector(worker: JSONLineProcess(executable: "/nonexistent", arguments: [])), audio: audio, sound: sound)
+    var failures = 0
+    voice.onSoundError = { _ in failures += 1 }
+    audio.startFails = true
+    await #expect(throws: (any Error).self) { try await voice.setSoundOptions(SoundActivationOptions(gestures: [.clap])) }
+    #expect(!sound.isEnabled)
+    #expect(failures == 1)
+    audio.startFails = false
+    try await voice.manualRecording()
+    await voice.cancel()
+    #expect(!audio.started)
+    #expect(!sound.isEnabled)
+    await voice.shutdown()
 }
 
 @Test @MainActor func manualCaptureWorksWithoutWakeAndKeepsTheEntireCommand() async throws {

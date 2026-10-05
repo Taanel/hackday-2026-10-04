@@ -74,13 +74,20 @@ public actor HomeAssistantClient {
         try Task.checkCancellation()
         let current = try config(), generation = revision
         let room = try Self.roomLights(action, areas: areas, entities: entities)
-        let targets = try room?.entities ?? [Self.resolve(action, in: entities)]
+        let requestedTargets = try room?.entities ?? [Self.resolve(action, in: entities, areas: areas)]
+        // An unavailable room member must not prevent the reachable lamps from
+        // responding. Explicit device commands still fail rather than disappear.
+        let skipped = room == nil ? [] : requestedTargets.filter(Self.isUnavailable)
+        let targets = room == nil ? requestedTargets : requestedTargets.filter { !Self.isUnavailable($0) }
+        guard !targets.isEmpty else {
+            throw AdapterError.unavailable("Keine erreichbaren Lampen in „\(room?.name ?? action.target)“. Nicht verfügbar: \(Self.unavailableNames(skipped)).")
+        }
         let entity = targets[0]
         let name = room?.name ?? entity.name
         if !areaCatalogAvailable, action.target != entity.id, !(entity.attributes.entity_id ?? []).isEmpty {
             throw AdapterError.unavailable("Raumzuordnung nicht abrufbar. Diese Lichtgruppe kann nur einen Teil des Raums enthalten. Bitte Home Assistant aktualisieren oder eine konkrete Lampe nennen.")
         }
-        guard targets.allSatisfy({ $0.state != "unavailable" && ($0.state != "unknown" || $0.domain == "scene") }) else { throw AdapterError.unavailable("Mindestens eines der gewählten Home-Assistant-Geräte ist nicht verfügbar.") }
+        guard targets.allSatisfy({ !Self.isUnavailable($0) }) else { throw AdapterError.unavailable("Das gewählte Home-Assistant-Gerät ist nicht verfügbar.") }
         var body: [String: Any] = ["entity_id": room == nil ? entity.entity_id as Any : targets.map(\.entity_id) as Any]
         let service: String
         switch action.operation {
@@ -110,9 +117,9 @@ public actor HomeAssistantClient {
         _ = try await fetch(path: "api/services/\(entity.domain)/\(service)", configuration: current, body: body)
         try Task.checkCancellation()
         guard generation == revision else { throw AdapterError.unavailable("Auftrag an die vorherige Serverkonfiguration gesendet. Keine automatische Wiederholung.") }
-        return try await confirm(action, targets: targets, name: name, configuration: current, generation: generation)
+        return try await confirm(action, targets: targets, skipped: skipped, name: name, configuration: current, generation: generation)
     }
-    private func confirm(_ action: HomeAssistantAction, targets: [HomeAssistantEntity], name: String,
+    private func confirm(_ action: HomeAssistantAction, targets: [HomeAssistantEntity], skipped: [HomeAssistantEntity], name: String,
                          configuration: HomeAssistantConfiguration, generation: UUID) async throws -> String {
         let deadline = ContinuousClock.now.advanced(by: .seconds(3))
         for attempt in 0..<7 {
@@ -152,18 +159,35 @@ public actor HomeAssistantClient {
                 case .temperature: result = "auf \(action.value!.formatted()) Grad"
                 case .activateScene: result = "aktiviert"
                 }
+                if !skipped.isEmpty {
+                    return "Home Assistant meldet: \(targets.count) von \(targets.count + skipped.count) Lampen in „\(name)“ \(result). Nicht verfügbar und übersprungen: \(Self.unavailableNames(skipped))."
+                }
                 let members = targets[0].attributes.entity_id ?? []
                 let count = targets.count > 1 ? " · \(targets.count) Lampen geprüft" : members.isEmpty ? "" : " · \(members.count) Gruppenmitglieder geprüft"
                 return "Home Assistant meldet: „\(name)“ \(result)\(count)."
             }
         }
-        throw AdapterError.unavailable("Auftrag für „\(name)“ gesendet, aber Home Assistant bestätigt den gewünschten Zustand noch nicht für alle gewählten Geräte. Keine automatische Wiederholung.")
+        let skippedNotice = skipped.isEmpty ? "" : " Nicht verfügbar und übersprungen: \(Self.unavailableNames(skipped))."
+        throw AdapterError.unavailable("Auftrag für „\(name)“ gesendet, aber Home Assistant bestätigt den gewünschten Zustand noch nicht für alle gewählten Geräte. Keine automatische Wiederholung.\(skippedNotice)")
+    }
+
+    private static func isUnavailable(_ entity: HomeAssistantEntity) -> Bool {
+        entity.state == "unavailable" || (entity.state == "unknown" && entity.domain != "scene")
+    }
+
+    private static func unavailableNames(_ entities: [HomeAssistantEntity]) -> String {
+        let names = entities.prefix(5).map { "\($0.name) (\($0.id))" }.joined(separator: ", ")
+        return entities.count > 5 ? names + " und \(entities.count - 5) weitere" : names
     }
 
     static func roomLights(_ action: HomeAssistantAction, areas: [HomeAssistantArea], entities: [HomeAssistantEntity]) throws -> (name: String, entities: [HomeAssistantEntity])? {
         guard [.turnOn, .turnOff, .brightness].contains(action.operation), !action.target.contains(".") else { return nil }
         let words = targetWords(action.target).subtracting(["licht"])
-        let matches = areas.filter { targetWords($0.name) == words }
+        let exact = areas.filter { targetWords($0.name) == words }
+        // Linking sounds (Küche + n + licht) are accepted only when the resulting
+        // stem identifies an actual HA area. Exact catalog names win first.
+        let alternatives = compoundRoomWords(action.target)
+        let matches = exact.isEmpty ? areas.filter { alternatives.contains(targetWords($0.name)) } : exact
         guard !matches.isEmpty else { return nil }
         guard matches.count == 1 else { throw AdapterError.unavailable("Mehrere Räume heißen so. Bitte den eindeutigen Raumnamen nennen.") }
         let area = matches[0]
@@ -173,6 +197,22 @@ public actor HomeAssistantClient {
         // Empty/stale areas may share a name with a still-valid explicit group.
         guard !lights.isEmpty else { return nil }
         return (area.name, lights.sorted { $0.id < $1.id })
+    }
+
+    private static func compoundRoomWords(_ value: String) -> [Set<String>] {
+        let words = targetWords(value).subtracting(["licht"])
+        let tokens = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "de_DE"))
+            .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        var alternatives: [Set<String>] = []
+        for token in tokens {
+            for suffix in ["beleuchtung", "lampen", "licht"] where token.hasSuffix(suffix) && token.count > suffix.count + 2 {
+                let stem = String(token.dropLast(suffix.count))
+                for linker in ["n", "en", "s", "es"] where stem.hasSuffix(linker) && stem.count > linker.count + 2 {
+                    alternatives.append(words.subtracting([stem]).union([String(stem.dropLast(linker.count))]))
+                }
+            }
+        }
+        return alternatives
     }
 
     private static func targetWords(_ value: String) -> Set<String> {
@@ -191,10 +231,14 @@ public actor HomeAssistantClient {
         if let configuration { return configuration }
         let value = try store.load(); configuration = value; return value
     }
-    static func resolve(_ action: HomeAssistantAction, in entities: [HomeAssistantEntity]) throws -> HomeAssistantEntity {
+    static func resolve(_ action: HomeAssistantAction, in entities: [HomeAssistantEntity], areas: [HomeAssistantArea] = []) throws -> HomeAssistantEntity {
         let domains: [String]
         switch action.operation {
-        case .turnOn, .turnOff: domains = ["light", "switch"]
+        case .turnOn, .turnOff:
+            let qualifiers = action.target.contains(".") ? [] : targetWords(action.target).intersection(["licht", "switch"])
+            if qualifiers == ["licht"] { domains = ["light"] }
+            else if qualifiers == ["switch"] { domains = ["switch"] }
+            else { domains = ["light", "switch"] }
         case .activateScene: domains = ["scene"]
         case .brightness: domains = ["light"]
         case .temperature: domains = ["climate"]
@@ -216,7 +260,13 @@ public actor HomeAssistantClient {
                 if groups.count > 1 { throw AdapterError.unavailable("Mehrere Lichtgruppen passen. Bitte einen genaueren Namen nennen.") }
             }
         }
-        let matches = pool.filter { needle.isSubset(of: words($0.name + " " + $0.entity_id)) }
+        let matches = pool.filter { entity in
+            let entityWords = words(entity.name + " " + entity.entity_id)
+            if needle.isSubset(of: entityWords) { return true }
+            return areas.contains { area in
+                area.entityIDs.contains(entity.id) && needle.isSubset(of: entityWords.union(words(area.name)))
+            }
+        }
         guard matches.count == 1 else {
             throw AdapterError.unavailable(matches.isEmpty ? "Kein passendes Gerät gefunden. Gerätenamen im Home-Assistant-Bereich prüfen." : "Mehrere Geräte passen. Bitte einen genaueren Namen oder die Entity-ID nennen.")
         }

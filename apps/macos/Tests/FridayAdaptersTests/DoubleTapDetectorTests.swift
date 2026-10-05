@@ -2,9 +2,24 @@ import Testing
 import Foundation
 @testable import FridayAdapters
 
+@Test func chassisDefaultUpperBoundRejectsImpactsOverPointZeroSixG() {
+    for strength in [0.05, 0.06, 0.08, 0.2] {
+        var detector = DoubleTapDetector()
+        var triggers = 0
+        for n in 0..<600 {
+            let t = Double(n) / 200
+            let pulse = (1..<1.015).contains(t) || (1.24..<1.255).contains(t)
+            if detector.accept(time: t, x: 0, y: 0, z: 1 + (pulse ? strength : 0)) { triggers += 1 }
+        }
+        #expect(triggers == (strength <= 0.06 ? 1 : 0))
+    }
+}
+
 private func replay(_ impacts: [(Double, Double, Double)], suppressed: ClosedRange<Double>? = nil,
                     movement: Bool = false, threshold: Double? = nil) -> Int {
-    var detector = threshold.map { DoubleTapDetector(threshold: $0) } ?? DoubleTapDetector()
+    // Large synthetic impulses isolate timing/filter policy; the user-facing
+    // default maximum is verified independently above with 0.05–0.20 g.
+    var detector = DoubleTapDetector(threshold: threshold ?? 0.03, maximumStrength: 1.5)
     var triggers = 0
     for n in 0..<900 {
         let t = Double(n) / 200
@@ -49,8 +64,8 @@ func chassisLowThresholdStillRejectsNoiseMovementAndTypedTaps(threshold: Double)
 
 @Test func chassisDiagnosticsDistinguishTypingFromMovementAndAftershock() {
     var blocked = DoubleTapDetector()
-    var movement = DoubleTapDetector()
-    var ringing = DoubleTapDetector()
+    var movement = DoubleTapDetector(maximumStrength: 1.5)
+    var ringing = DoubleTapDetector(maximumStrength: 1.5)
     for n in 0..<283 {
         let t = Double(n) / 200
         _ = blocked.accept(time: t, x: 0, y: 0, z: (1..<1.015).contains(t) ? 1.1 : 1,
