@@ -11,8 +11,9 @@ let package = Package(
     ],
     dependencies: [.package(path: "Vendor/ThinkingOrbsKit")],
     targets: [
+        .target(name: "FridayMotion", linkerSettings: [.linkedFramework("IOKit")]),
         .target(name: "FridayCore"),
-        .target(name: "FridayAdapters", dependencies: ["FridayCore"]),
+        .target(name: "FridayAdapters", dependencies: ["FridayCore", "FridayMotion"]),
         .executableTarget(
             name: "FridayApp",
             dependencies: [

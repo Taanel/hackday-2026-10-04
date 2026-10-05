@@ -149,6 +149,13 @@ struct AssistantView: View {
                 Text("Fenster und Terminal-Tabs brauchen Bedienungshilfen. Safari und Terminal fragen zusätzlich nach Automation, wenn du sie erstmals durchsuchen lässt.").font(.callout).foregroundStyle(.secondary)
                 Button("Computersteuerung erlauben", systemImage: "keyboard") { MacToolExecutor.requestComputerControl() }
             }
+            Section("Lokale Entscheidungen") {
+                Text("App-Starts, Notizen, Suchen und Gerätesteuerung werden lokal entschieden. Fragen und komplexere Aufträge können Gemini nutzen.").font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("Letzte Entscheidung prüfen") {
+                    Text(model.localDecisionSummary).font(.callout).textSelection(.enabled)
+                    Text("Eindeutig erkannte lokale Aufträge werden bei einer Laya-Störung nicht automatisch an Gemini geschickt.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section("Bereits offene Inhalte") {
                 Label("„Such den Safari-Tab mit Seite XY“", systemImage: "safari")
                 Label("„Such den Tab raus, wo ich XY offen habe“", systemImage: "rectangle.on.rectangle")

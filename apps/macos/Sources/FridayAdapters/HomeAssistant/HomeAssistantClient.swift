@@ -180,7 +180,12 @@ public actor HomeAssistantClient {
             .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
         let ignored = Set(["das", "die", "der", "den", "im", "in", "am", "raum", "zimmer", "bitte", "alle", "allen"])
         let replacements = ["lampe":"licht", "lampen":"licht", "lichter":"licht", "beleuchtung":"licht", "light":"licht", "steckdose":"switch", "heizung":"climate", "thermostat":"climate"]
-        return Set(filtered.filter { !ignored.contains($0) }.map { replacements[$0] ?? $0 })
+        return Set(filtered.filter { !ignored.contains($0) }.flatMap { word -> [String] in
+            for suffix in ["beleuchtung", "lampen", "licht"] where word.hasSuffix(suffix) && word.count > suffix.count + 2 {
+                return [String(word.dropLast(suffix.count)), "licht"]
+            }
+            return [replacements[word] ?? word]
+        })
     }
     private func config() throws -> HomeAssistantConfiguration {
         if let configuration { return configuration }

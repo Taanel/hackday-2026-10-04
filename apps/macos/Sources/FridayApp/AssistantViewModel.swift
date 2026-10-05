@@ -52,6 +52,7 @@ import FridayAdapters
     @Published private(set) var speechNotice = ""
     @Published private(set) var lastWakeTranscript = ""
     @Published private(set) var microphoneLevel = 0.0
+    @Published private(set) var localDecisionSummary = "Noch kein Auftrag geprüft"
     @Published private(set) var status = "Bereit · Demo"
     @Published private(set) var isWorking = false
     @Published private(set) var phase: AssistantPhase = .idle
@@ -62,6 +63,20 @@ import FridayAdapters
     @Published private(set) var isTrainingWake = false
     @Published private(set) var personalWakeReady = FileManager.default.fileExists(atPath:
         RuntimeConfiguration.supportDirectory.appendingPathComponent("VoiceProfile/profile.json").path)
+    @Published private(set) var chassisEnabled = false
+    @Published private(set) var chassisTesting = false
+    @Published private(set) var chassisStatus = "Optional · ausgeschaltet"
+    @Published private(set) var chassisPairs = 0
+    @Published private(set) var chassisRejected = 0
+    @Published private(set) var chassisStrength = 0.0
+    @Published var chassisThreshold = UserDefaults.standard.object(forKey: "Friday.chassisThreshold") as? Double ?? 0.12 {
+        didSet {
+            chassis.threshold = chassisThreshold
+            UserDefaults.standard.set(chassisThreshold, forKey: "Friday.chassisThreshold")
+        }
+    }
+    private let chassis = ChassisActivation()
+    private var chassisTestTask: Task<Void, Never>?
 
     private let router: AssistantRouter
     private let speech: any SpeechOutput
@@ -106,6 +121,59 @@ import FridayAdapters
         self.homeSettings = HomeAssistantSettings(client: homeAssistant)
         geminiKeyConfigured = keyStore.isConfigured
         configuredTTSKeySlots = ttsKeyStore.configuredSlots
+        chassis.threshold = chassisThreshold
+        chassis.canActivate = { [weak self] in
+            guard let self else { return false }
+            return !self.shuttingDown && self.isReady && !self.isWorking && !self.isRecording
+        }
+        chassis.onActivate = { [weak self] in self?.startRecording() }
+        chassis.onDiagnostics = { [weak self] pairs, rejected, strength in
+            guard let self, self.chassisTesting || OrbWindowActivity.shared.active else { return }
+            self.chassisPairs = pairs; self.chassisRejected = rejected; self.chassisStrength = strength
+        }
+        chassis.onError = { [weak self] error in
+            self?.chassisEnabled = false; self?.chassisTesting = false; self?.chassisStatus = error
+        }
+    }
+
+    func setChassisEnabled(_ value: Bool) {
+        guard !shuttingDown, isReady, !isWorking else { return }
+        chassisTestTask?.cancel(); chassisTestTask = nil; chassisTesting = false
+        chassis.stop(); chassisEnabled = false
+        UserDefaults.standard.set(false, forKey: "Friday.chassisEnabled")
+        guard value else { chassisStatus = "Optional · ausgeschaltet"; return }
+        do {
+            chassis.testOnly = false
+            try chassis.start()
+            chassisEnabled = true
+            UserDefaults.standard.set(true, forKey: "Friday.chassisEnabled")
+            chassisStatus = "Doppeltippen aktiviert das Mikrofon · lokal"
+        } catch { chassisStatus = error.localizedDescription }
+    }
+
+    func testChassis() {
+        guard !shuttingDown, isReady, !isWorking, !chassisTesting else { return }
+        do {
+            chassis.stop(); chassis.testOnly = true
+            try chassis.start()
+            chassisPairs = 0; chassisRejected = 0; chassisStrength = 0
+            chassisTesting = true
+            chassisStatus = "30 Sekunden testen · keine Aufnahme durch Tippen"
+            chassisTestTask = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                self?.finishChassisTest()
+            }
+        } catch { chassisEnabled = false; chassisStatus = error.localizedDescription }
+    }
+
+    func finishChassisTest() {
+        chassisTestTask?.cancel(); chassisTestTask = nil
+        chassis.stop(); chassisTesting = false; chassis.testOnly = false
+        chassisStatus = "Test beendet · \(chassisPairs) Doppeltipps erkannt"
+        if chassisEnabled {
+            do { try chassis.start(); chassisStatus += " · Aktivierung wieder an" }
+            catch { chassisEnabled = false; chassisStatus = error.localizedDescription }
+        }
     }
 
     func updateTTSKey(slot: Int, remove: Bool = false) async {
@@ -311,6 +379,7 @@ import FridayAdapters
                 try Task.checkCancellation()
                 isReady = true; phase = .idle
                 status = "Bereit · Laya und Hex lokal"
+                if UserDefaults.standard.bool(forKey: "Friday.chassisEnabled") { setChassisEnabled(true) }
             } catch is CancellationError {}
             catch { phase = .failed; status = "Modellstart fehlgeschlagen"; response = error.localizedDescription }
             startupTask = nil
@@ -442,7 +511,9 @@ import FridayAdapters
                     response = "Alles klar."; phase = .idle; status = "Gespräch beendet"
                     await rearmVoice(token: token); expireTranscript(after: .seconds(1)); return
                 }
-                let result = try await router.handle(submittedInput, mode: submittedMode) { [weak self] phase in
+                let result = try await router.handleReportingDecision(submittedInput, mode: submittedMode, onDecision: { [weak self] summary in
+                    await self?.showDecision(summary, token: token)
+                }) { [weak self] phase in
                     await self?.showPhase(phase, token: token)
                 }
                 try Task.checkCancellation()
@@ -556,6 +627,11 @@ import FridayAdapters
         }
     }
 
+    private func showDecision(_ summary: String, token: UUID) {
+        guard generation == token else { return }
+        localDecisionSummary = summary
+    }
+
     func cancel() {
         guard !shuttingDown else { return }
         let speechOnly = phase == .speaking
@@ -615,6 +691,7 @@ import FridayAdapters
     func shutdown() async {
         dismissWeatherOverlay()
         shuttingDown = true
+        chassisTestTask?.cancel(); chassis.stop()
         clearTranscript()
         clearTrainingFiles()
         generation = UUID()

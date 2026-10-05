@@ -1,4 +1,5 @@
 import SwiftUI
+import FridayAdapters
 
 struct VoiceSettingsView: View {
     @ObservedObject var model: AssistantViewModel
@@ -25,6 +26,36 @@ struct VoiceSettingsView: View {
                     Text(model.wakeEnabled ? "Sprich normal laut. Der Balken zeigt den Mikrofonpegel." : "Aktiviere Hey Friday, um Pegel und Erkennung zu prüfen.").font(.caption).foregroundStyle(.secondary)
                     Text(model.lastWakeTranscript.isEmpty ? "Noch keine Sprache erkannt." : "Zuletzt gehört: \(model.lastWakeTranscript)").font(.caption).textSelection(.enabled)
                     Text("Bleibt lokal und wird nicht gespeichert.").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            Section("Gehäuse-Doppeltippen") {
+                Toggle("Durch Doppeltippen sprechen", isOn: Binding(get: { model.chassisEnabled }, set: { model.setChassisEnabled($0) }))
+                    .disabled(!model.isReady || model.isWorking || model.chassisTesting)
+                Text("Zweimal auf das Aluminium neben dem Trackpad tippen, dann sprechen. Funktioniert auch ohne Hey Friday. Nach Tastatur- und Trackpad-Eingaben kurz warten.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(model.chassisStatus).font(.caption).textSelection(.enabled)
+                DisclosureGroup("Einrichten & testen") {
+                    Button("Eingabeüberwachung erlauben", systemImage: "hand.raised") {
+                        ChassisActivation.requestInputPermission()
+                        if !ChassisActivation.hasInputPermission { ChassisActivation.openInputSettings() }
+                    }
+                    Text("In Datenschutz → Eingabeüberwachung Friday erlauben. Falls macOS es verlangt, Friday schließen und erneut öffnen. Die Erkennung liest keine getippten Texte.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Button(model.chassisTesting ? "Test beenden" : "30 Sekunden testen", systemImage: "hand.tap") {
+                            if model.chassisTesting { model.finishChassisTest() } else { model.testChassis() }
+                        }.disabled(!model.isReady || model.isWorking)
+                        Text("\(model.chassisPairs) Doppeltipps · \(model.chassisRejected) verworfen")
+                            .font(.caption).monospacedDigit()
+                    }
+                    Text("Erst normal tippen und das Trackpad benutzen: Der Doppeltipp-Zähler soll bei 0 bleiben. Dann einige Doppeltipps probieren. Im Testmodus wird dadurch keine Aufnahme gestartet.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    LabeledContent("Erkennungsschwelle") {
+                        Slider(value: $model.chassisThreshold, in: 0.04...0.35, step: 0.01).frame(maxWidth: 200)
+                        Text(String(format: "%.2f g", model.chassisThreshold)).monospacedDigit()
+                    }
+                    Text("Kleiner = empfindlicher. Letzter Impuls: \(String(format: "%.3f g", model.chassisStrength)). Auf weichen Unterlagen kann die Erkennung schwächer sein.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Aufnahme & Gespräch") {

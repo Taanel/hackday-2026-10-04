@@ -84,6 +84,17 @@ private final class HomeProtocol: URLProtocol, @unchecked Sendable {
         #expect(HomeProtocol.posts.count == 1)
     }
 
+    @Test func compoundRoomLightNameControlsTheSameCompleteRoom() async throws {
+        HomeProtocol.reset(fixtures: roomFixture)
+        let (directory, client, session) = try context(areas: [room])
+        defer { session.invalidateAndCancel(); try? FileManager.default.removeItem(at: directory) }
+        let action = try #require(HomeAssistantCommandParser.parse("Hey, mach mal das Wohnzimmerlicht aus"))
+        _ = try await client.execute(action)
+        let body = try JSONSerialization.jsonObject(with: HomeProtocol.posts[0].httpBody!) as! [String: Any]
+        #expect(Set(body["entity_id"] as! [String]) == ["light.black_hole", "light.stripes", "light.kaskade_01", "light.albedo"])
+        #expect(HomeProtocol.posts.count == 1)
+    }
+
     @Test func explicitDeviceCommandDoesNotExpandToTheEntireRoom() async throws {
         HomeProtocol.reset(fixtures: roomFixture)
         let (directory, client, session) = try context(areas: [room])

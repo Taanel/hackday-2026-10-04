@@ -58,6 +58,26 @@ Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
 
 ## Direkt testen
 
+App-Starts, Notizen und Lichtbefehle unterstützen auch „mal bitte“, „kannst du mir“
+und ähnliche Befehlspräfixe. Laya liefert Intent und Konfidenz; Parameter werden
+lokal gegen Apps bzw. Home Assistant geprüft. Ein vollständig erkannter lokaler
+Auftrag geht bei Laya-Fehlern oder Unsicherheit nicht automatisch an Gemini.
+Unter **Computer → Lokale Entscheidungen → Letzte Entscheidung prüfen** steht,
+ob lokal ausgeführt oder an das LLM weitergegeben wurde. [Messungen und
+Fine-Tuning-Grenzen](docs/laya-optimization.md).
+
+Optional: **Sprache → Gehäuse-Doppeltippen → Einrichten & testen**.
+Friday in macOS unter Datenschutz → Eingabeüberwachung erlauben, anschließend
+den 30-Sekunden-Test starten. Erst normal schreiben / Trackpad benutzen (0
+Doppeltipps erwartet), dann zweimal auf das Aluminium neben dem Trackpad tippen.
+Die Empfindlichkeit lässt sich dort einstellen. Im Testmodus startet Tippen keine
+Aufnahme. Danach „Durch Doppeltippen sprechen“ einschalten: Ein Doppeltipp startet
+dieselbe Aufnahme wie ein Klick aufs Overlay, auch ohne eingeschaltetes Wake-Wort.
+Einzelanschläge, kürzliches Tippen / Klicken und aktive Befehle / Sprachausgabe
+sperren diese Aktivierung. Ohne eingeschaltete Option läuft der Sensor nicht.
+Die erste Version ist experimentell; echte Erkennungsraten müssen auf der eigenen
+Unterlage geprüft werden. [Technik, Grenzen und Recherche](docs/chassis-activation.md).
+
 1. „Friday öffnen“ im Menüleisten-Menü wählen und auf „Bereit · Laya und Hex lokal“ warten.
 2. „Hey Friday“ einschalten und macOS-Mikrofonzugriff erlauben.
    Das Setup verwendet Moonshine Small Streaming Deutsch mit „Hey Friday“ und „Hi Friday“ als Schlüsselphrasen.

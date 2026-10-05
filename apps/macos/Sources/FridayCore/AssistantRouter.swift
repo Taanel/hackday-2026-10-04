@@ -24,6 +24,15 @@ public struct AssistantRouter: Sendable {
         mode: InputMode = .assistant,
         onPhase: @Sendable (AssistantPhase) async -> Void = { _ in }
     ) async throws -> AssistantResponse {
+        try await handleReportingDecision(text, mode: mode, onDecision: { _ in }, onPhase: onPhase)
+    }
+
+    public func handleReportingDecision(
+        _ text: String,
+        mode: InputMode = .assistant,
+        onDecision: @Sendable (String) async -> Void,
+        onPhase: @Sendable (AssistantPhase) async -> Void = { _ in }
+    ) async throws -> AssistantResponse {
         try Task.checkCancellation()
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw FridayError.emptyInput
@@ -40,7 +49,11 @@ public struct AssistantRouter: Sendable {
             decision = try await decisions.decide(text: text)
         } catch is CancellationError {
             throw CancellationError()
+        } catch let error as LocalDecisionFailure {
+            await onDecision(error.localizedDescription)
+            throw error
         } catch {
+            await onDecision("Lokale Entscheidung nicht verfügbar · LLM-Fallback")
             return try await fallback(text, onPhase: onPhase)
         }
 
@@ -50,6 +63,7 @@ public struct AssistantRouter: Sendable {
            decision.confidence >= minimumConfidence,
            case .action(let request) = decision.intent,
            request.hasValidArguments {
+            await onDecision("\(decision.summary ?? "Lokale Aktion") · \(Int((decision.confidence * 100).rounded())) % · lokal")
             // Tool failures propagate: do not repeat a potentially completed action via an LLM.
             await onPhase(.acting)
             try Task.checkCancellation()
@@ -57,6 +71,12 @@ public struct AssistantRouter: Sendable {
             try Task.checkCancellation()
             return AssistantResponse(text: result, route: .fastAction)
         }
+        if !decision.allowsReasoningFallback {
+            let message = "Laya konnte diesen lokalen Auftrag nicht sicher zuordnen. Bitte kurz neu formulieren; Gemini wurde dafür nicht aufgerufen."
+            await onDecision("\(decision.summary ?? "Lokaler Auftrag") · unsicher · kein Cloud-Aufruf")
+            throw LocalDecisionFailure(message)
+        }
+        await onDecision("\(decision.summary ?? "Keine ausführbare lokale Aktion erkannt") · LLM-Fallback")
         return try await fallback(text, onPhase: onPhase)
     }
 

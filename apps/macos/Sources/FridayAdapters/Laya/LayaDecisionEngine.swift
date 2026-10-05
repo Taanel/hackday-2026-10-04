@@ -14,6 +14,10 @@ public struct LayaDecisionEngine: FastDecisionEngine {
 
     public func decide(text: String) async throws -> FastDecision {
         let id = UUID().uuidString
+        let localIntents = ["home_control", "open_folder", "open_url", "find_project", "search_web", "switch_desktop", "open_app", "create_note"]
+        let candidate = localIntents.first { parser.parse(intent: $0, text: text) != nil }
+        let names = ["home_control": "Home Assistant", "open_folder": "Ordner öffnen", "open_url": "Webseite öffnen", "find_project": "Lokale Suche", "search_web": "Safari-Suche", "switch_desktop": "Schreibtisch wechseln", "open_app": "App öffnen", "create_note": "Notiz speichern"]
+        let localSummary = candidate.flatMap { names[$0] }
         // Canonicalize only a complete, validated search command. Laya still
         // decides the intent; the parser later extracts the original query.
         let modelInput: String
@@ -37,16 +41,26 @@ public struct LayaDecisionEngine: FastDecisionEngine {
             modelInput = "Öffne die installierte App \(identifier) auf diesem Mac."
         } else if case .createNote = parser.parse(intent: "create_note", text: text) {
             // Classify the requested operation, not the contents of the note.
-            modelInput = "Speichere den diktierten Text als neue Notiz auf diesem Mac."
+            modelInput = "Schreibe eine Notiz mit dem diktierten Text."
         } else { modelInput = text }
         let data = try JSONEncoder().encode(Request(id: id, text: modelInput))
-        let reply = try JSONDecoder().decode(Reply.self, from: await worker.request(data, id: id))
+        let reply: Reply
+        do { reply = try JSONDecoder().decode(Reply.self, from: await worker.request(data, id: id)) }
+        catch is CancellationError { throw CancellationError() }
+        catch {
+            if candidate != nil { throw LocalDecisionFailure("Laya ist für diesen lokalen Auftrag gerade nicht verfügbar. Gemini wurde dafür nicht aufgerufen. Bitte erneut versuchen.") }
+            throw error
+        }
         guard !reply.truncated, reply.confidence.isFinite, (0...1).contains(reply.confidence) else {
-            return FastDecision(intent: .unknown, confidence: 0)
+            return FastDecision(intent: .unknown, confidence: 0, allowsReasoningFallback: candidate == nil, summary: localSummary)
+        }
+        if let candidate, candidate != reply.intent {
+            return FastDecision(intent: .unknown, confidence: reply.confidence, allowsReasoningFallback: false, summary: "\(localSummary ?? "Lokaler Auftrag") · Modellzuordnung widersprüchlich")
         }
         if let action = parser.parse(intent: reply.intent, text: text) {
-            return FastDecision(intent: .action(action), confidence: reply.confidence)
+            return FastDecision(intent: .action(action), confidence: reply.confidence, allowsReasoningFallback: candidate == nil, summary: names[reply.intent])
         }
-        return FastDecision(intent: reply.intent == "reasoning" ? .reasoning : .unknown, confidence: reply.confidence)
+        return FastDecision(intent: reply.intent == "reasoning" ? .reasoning : .unknown, confidence: reply.confidence,
+                            summary: reply.intent == "reasoning" ? "Frage / Erklärung" : "Keine vollständige lokale Aktion erkannt")
     }
 }

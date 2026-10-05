@@ -7,6 +7,18 @@ import FridayCore
 /// Opt-in offscreen visual review. Never activates or touches the running app.
 @Suite @MainActor struct InterfacePreviewTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["FRIDAY_RENDER_PREVIEWS"] == "1"))
+    func renderChassisVoiceSettingsOffscreen() async throws {
+        _ = NSApplication.shared
+        let model = AssistantViewModel.live()
+        for (name, scheme) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
+            for page in [AssistantPage.voice, .computer] {
+                try await capture(AssistantView(model: model, page: page).environment(\.colorScheme, scheme), size: NSSize(width: 800, height: 700), file: "/tmp/friday-v14-\(page.id)-\(name).png", dark: name == "dark")
+            }
+        }
+        await model.shutdown()
+    }
+
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["FRIDAY_RENDER_PREVIEWS"] == "1"))
     func renderSettingsAndWeatherOffscreen() async throws {
         _ = NSApplication.shared
         let model = AssistantViewModel.live() // Providers are not started.

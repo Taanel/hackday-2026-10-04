@@ -118,11 +118,22 @@ public enum DecisionIntent: Sendable {
 public struct FastDecision: Sendable {
     public let intent: DecisionIntent
     public let confidence: Double
+    public let allowsReasoningFallback: Bool
+    public let summary: String?
 
-    public init(intent: DecisionIntent, confidence: Double) {
+    public init(intent: DecisionIntent, confidence: Double, allowsReasoningFallback: Bool = true, summary: String? = nil) {
         self.intent = intent
         self.confidence = confidence
+        self.allowsReasoningFallback = allowsReasoningFallback
+        self.summary = summary
     }
+}
+
+/// An explicit local action must not consume cloud quota when its local provider fails.
+public struct LocalDecisionFailure: Error, LocalizedError, Sendable {
+    public let message: String
+    public init(_ message: String) { self.message = message }
+    public var errorDescription: String? { message }
 }
 
 public enum FridayError: Error, LocalizedError, Sendable {

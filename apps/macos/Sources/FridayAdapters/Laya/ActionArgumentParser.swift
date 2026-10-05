@@ -51,7 +51,7 @@ public struct ActionArgumentParser: Sendable {
     }
 
     public func parse(intent: String, text: String) -> ToolRequest? {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = SpokenCommandText.normalize(text)
         switch intent {
         case "home_control":
             return HomeAssistantCommandParser.parse(text).map(ToolRequest.homeAssistant)
@@ -82,6 +82,7 @@ public struct ActionArgumentParser: Sendable {
             // Opening Safari is already part of searchSafari. Treat this
             // common spoken combination as one action, keeping only the query.
             guard let query = capture(#"^(?:bitte\s+)?(?:öffne|oeffne|starte|open)\s+(?:bitte\s+)?(?:den\s+)?(?:safari|browser)\s*[,;]?\s+(?:und\s+(?:dann\s+)?|dann\s+)(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)[.!?]*$"#, text)
+                ?? capture(#"^(?:bitte\s+)?(?:safari|browser)\s+öffnen\s+und\s+(?:nach\s+)?(.+?)\s+suchen[.!?]*$"#, text)
                 ?? capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)\s+(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)[.!?]*$"#, text)
                 ?? capture(#"^(?:bitte\s+)?(?:suche|such)\s+(?:bitte\s+)?(?:auf|in|mit)\s+(?:dem\s+)?(?:safari|browser)\s+nach\s+(.+?)[.!?]*$"#, text)
                 ?? capture(#"^(?:bitte\s+)?(?:suche|such|google)\s+(?:bitte\s+)?(?:nach\s+)?(.+?)[.!?]*$"#, text),
@@ -106,7 +107,8 @@ public struct ActionArgumentParser: Sendable {
         case "create_note":
             guard let content = capture(
                 #"^(?:(?:bitte\s+)?(?:mach|mache|erstell|erstelle|schreib|schreibe)\s+(?:mir\s+)?(?:eine\s+)?(?:notiz|note)(?:\s+mit\s+(?:dem\s+)?(?:inhalt|text))?|notiz|note)(?:\s*[:,-]\s*|\s+)(.+)$"#, text
-            ) ?? capture(#"^(?:notiere|merke)\s+(?:dir\s+)?(.+)$"#, text),
+            ) ?? capture(#"^(?:eine\s+)?(?:notiz|note)\s+(?:machen|erstellen|schreiben)(?:\s*[:,-]\s*|\s+)(.+)$"#, text)
+              ?? capture(#"^(?:notier|notiere|notieren|merke)\s*[:,-]?\s+(?:dir\s+)?(.+)$"#, text),
                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   content.range(of: #"\b(?:und|dann|danach|außerdem)\s+(?:bitte\s+)?(?:öffne|starte|lösche|schließe|mach|erstelle|schreibe|führe)\b"#, options: [.regularExpression, .caseInsensitive]) == nil,
                   content.count <= 10_000 else { return nil }

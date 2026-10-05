@@ -1,0 +1,30 @@
+{"text": "Hey, kannst du mal bitte Safari öffnen?", "expectedRoute": "fastAction", "intent": "open_app"}
+{"text": "Öffne mal bitte Safari", "expectedRoute": "fastAction", "intent": "open_app"}
+{"text": "Mach bitte mal Terminal auf", "expectedRoute": "fastAction", "intent": "open_app"}
+{"text": "Kannst du mir bitte Finder öffnen?", "expectedRoute": "fastAction", "intent": "open_app"}
+{"text": "Starte bitte mal Notizen", "expectedRoute": "fastAction", "intent": "open_app"}
+{"text": "Hey, mach mal das Wohnzimmerlicht aus", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Kannst du bitte das Licht im Wohnzimmer ausmachen?", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Bitte alle Lichter im Wohnzimmer ausschalten", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Schalte bitte mal die Kaskade an", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Mach mir bitte das Licht in der Küche an", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Wohnzimmer Licht ausschalten", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Stell mal bitte Albedo auf 30 Prozent", "expectedRoute": "fastAction", "intent": "home_control"}
+{"text": "Kannst du mir eine Notiz machen: Milch kaufen", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Mach bitte mal eine Notiz: Milch kaufen", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Schreib mir bitte eine Notiz, dass ich morgen Milch kaufen muss", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Notier mir bitte Milch kaufen", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Kannst du bitte notieren: Milch kaufen", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Hey, suche mal bitte nach Test in Safari", "expectedRoute": "fastAction", "intent": "search_web"}
+{"text": "Kannst du Safari öffnen und nach Test suchen?", "expectedRoute": "fastAction", "intent": "search_web"}
+{"text": "Wechsel bitte mal den Schreibtisch nach rechts", "expectedRoute": "fastAction", "intent": "switch_desktop"}
+{"text": "Erkläre mir bitte, wie ich das Wohnzimmerlicht ausschalte", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Was passiert, wenn ich Safari öffne?", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Wenn ich nach Hause komme, mach das Licht an", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Ist Albedo aus?", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Notiz: Schalte das Wohnzimmerlicht aus", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Ich möchte wissen, wie man eine Notiz macht", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Kannst du das Wohnzimmerlicht morgen ausschalten?", "expectedRoute": "reasoning", "intent": "reasoning"}
+{"text": "Note: Wohnzimmer aus", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Merke dir Wohnzimmer aus", "expectedRoute": "fastAction", "intent": "create_note"}
+{"text": "Google Wohnzimmer aus", "expectedRoute": "fastAction", "intent": "search_web"}

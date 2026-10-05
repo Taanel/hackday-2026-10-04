@@ -82,6 +82,26 @@ private struct Planner: ActionPlanningReasoningEngine {
     #expect(await reasoning.calls == 0)
 }
 
+@Test func localOnlyActionUncertaintyNeverConsumesCloudQuotaOrActs() async {
+    for confidence in [0.4, Double.nan, 1.0] {
+        let reasoning = ReasoningSpy(), tools = ToolSpy()
+        let router = AssistantRouter(decisions: DecisionStub(.decision(FastDecision(intent: .unknown, confidence: confidence, allowsReasoningFallback: false))), reasoning: reasoning, tools: tools)
+        await #expect(throws: LocalDecisionFailure.self) { try await router.handle("Wohnzimmer aus") }
+        #expect(await reasoning.calls == 0); #expect(await tools.requests.isEmpty)
+    }
+}
+
+private struct FailedLocalProvider: FastDecisionEngine {
+    func decide(text: String) async throws -> FastDecision { throw LocalDecisionFailure("Lokales Modell nicht verfügbar") }
+}
+
+@Test func localProviderFailureNeverSilentlyCallsGemini() async {
+    let reasoning = ReasoningSpy(), tools = ToolSpy()
+    let router = AssistantRouter(decisions: FailedLocalProvider(), reasoning: reasoning, tools: tools)
+    await #expect(throws: LocalDecisionFailure.self) { try await router.handle("Öffne Safari") }
+    #expect(await reasoning.calls == 0); #expect(await tools.requests.isEmpty)
+}
+
 @Test func safariSearchSkipsTheLLM() async throws {
     let request = ToolRequest.searchSafari(query: "test")
     let reasoning = ReasoningSpy()
