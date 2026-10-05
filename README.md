@@ -3,7 +3,7 @@
 Erste testbare Version: Thinking-Orb-Overlay oben rechts, native Thinking Orbs,
 „Hey Friday“ (weitere Wake-Varianten optional), deutsche Spracheingabe mit Hex, lokale Laya-Entscheidungen und
 Computeraktionen. Komplexe Fragen gehen je nach Konfiguration an Gemini Flash oder Ollama; nur LLM-Antworten können
-optional mit der lokalen deutschen Piper-Stimme vorgelesen werden. Gemini-TTS ist zusätzlich auswählbar. Friday startet als Menüleisten-App
+optional mit Gemini-TTS auf Deutsch vorgelesen werden; Piper ist der lokale Ersatz. Friday startet als Menüleisten-App
 mit transparentem Overlay, ohne Dock-Icon oder automatisch geöffnetes Fenster.
 
 ## Starten
@@ -40,7 +40,7 @@ Autorisierung des Schlüssels bei Google wird erst beim API-Aufruf geprüft.
 Für eine stabile App-Identität kann `FRIDAY_SIGNING_IDENTITY` beim Bauen gesetzt oder
 deren Name/Hash in `~/Library/Application Support/Friday/signing-identity` gespeichert
 werden. Gemini-Reasoning und die optional ausgewählte Gemini-Stimme senden Anfrage- bzw. Antworttext an
-Google; Hex, Wake, Laya und die Standardstimme Piper bleiben lokal. Recherche sendet Suchbegriffe an DuckDuckGo
+Google; Hex, Wake, Laya und die auswählbare Piper-Stimme bleiben lokal. Recherche sendet Suchbegriffe an DuckDuckGo
 oder den ausdrücklich genannten Wetter-Ort an Open-Meteo.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
@@ -74,12 +74,18 @@ Gemini zeigt die verschachtelnde solving-Animation. Nach Hex erscheint der erkan
 am Overlay; nach erfolgreicher Computeraktion verschwindet er nach einer Sekunde,
 bei Fragen nach acht Sekunden. Beim nächsten Befehl wird
 er entfernt. Das ist kein Wort-für-Wort-Live-Transkript.
-LLM-Antworten werden standardmäßig mit Piper „Thorsten High“ auf Deutsch vorgelesen,
-vollständig lokal und ohne API-Kosten. Die Stimme wird beim Setup vorbereitet,
+Gemini-Antworten werden standardmäßig mit Gemini-TTS vorgelesen. Drei Modelle
+wechseln sich ab: 3.8 Flash-Lite TTS, 3.8 Flash TTS und 3.1 Flash TTS Preview.
+Die gewählte Stimme (Kore, Aoede oder Charon) bleibt gleich. Bei Rate-Limits werden
+betroffene Modelle bis zum Retry-Zeitpunkt bzw. Tagesreset übersprungen. Alle
+Versuche einer Antwort teilen ein 20-Sekunden-Zeitbudget. Die Anzeige nennt das
+tatsächlich verwendete Modell. Drei Stimmen oder Schlüssel im selben Google-
+Projekt erhöhen dessen Kontingent nicht; Modellkontingente hängen vom Projekt ab.
+Wenn die Cloud-Ausgabe scheitert, übernimmt Piper „Thorsten High“, vollständig
+lokal und ohne API-Kosten. Die Cloud-Ausgabe pausiert dann zwei Minuten;
+Modell-Sperren bleiben erhalten. Piper lässt sich auch dauerhaft auswählen und
+ist bei Ollama die lokale Ausgabe. Die Stimme wird beim Setup vorbereitet,
 beim ersten Vorlesen geladen und verwendet anschließend keine Netzwerkverbindung.
-Alternativ sind Gemini 3.8 Flash-Lite TTS mit Kore, Aoede und Charon auswählbar.
-Bei einem Cloud-Sprachfehler übernimmt Piper; bis zur erneuten Auswahl bzw. zum
-Speichern eines Schlüssels wird die Cloud-Stimme in dieser Sitzung nicht erneut angefragt.
 Die Anzeige unter dem Sprachschalter nennt die verwendete Stimme oder einen Fehler;
 die Textantwort bleibt erhalten. Der Schalter kann die Sprachausgabe ausschalten.
 Gemini 3.5 Flash-Lite mit minimalem Thinking ist der Standard für Textantworten.
@@ -140,7 +146,7 @@ App-Starts und Notizen bleiben stumm.
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
-| Text → Sprache | Piper Thorsten High lokal; Gemini 3.8 Flash-Lite TTS optional mit lokalem Fallback |
+| Text → Sprache | Drei Gemini-TTS-Modelle im Wechsel; Piper Thorsten High lokal als Ersatz oder eigene Auswahl |
 | Recherche | DuckDuckGo-Snippets, Open-Meteo-Prognose, Quellen separat zur Antwort |
 | Oberfläche | Menüleisten-Kugel und transparentes Thinking-Orb-Overlay; native MIT-Animationen |
 

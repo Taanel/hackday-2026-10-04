@@ -16,7 +16,7 @@ flowchart TD
     LLM --> Reply[Antworttext]
     LLM -->|search_web / weather_forecast| Research[DuckDuckGo-Snippets / Open-Meteo]
     Research -->|Daten ohne Computerfunktionen| LLM
-    Reply --> TTS[Piper lokal / Gemini-Stimme optional]
+    Reply --> TTS[Gemini-TTS / Piper lokal als Ersatz]
 ```
 
 AudioInput ist der einzige Mikrofonbesitzer. Es konvertiert auf 16-kHz-Mono,
@@ -49,7 +49,7 @@ Friday-Ordner gespeichert. Schreibtischwechsel senden Control + Pfeiltaste mit
 Bedienungshilfen-Zugriff. Freie Terminalbefehle, allgemeine Klick-Steuerung und
 Cursor-Diktat sind noch offen. Gemini kann höchstens drei typisierte Aktionen an
 den Router zurückgeben; dieser validiert alle vor der ersten Ausführung und nutzt
-die gleichen lokalen Tools. Piper liest LLM-Antworten standardmäßig lokal vor und
+die gleichen lokalen Tools. Gemini-TTS liest Gemini-Antworten standardmäßig vor und
 wartet auf Wiedergabeende; einfache Aktionen bleiben stumm.
 
 Das Thinking-Orb-Overlay und das Fenster beobachten dieselben Phasen: idle, listening,
@@ -129,7 +129,15 @@ Namen und Gruppen aus dem Gerätekatalog, noch keine HA-Area-Registry.
 Das Standard-Wake-Modell ist jetzt German Small Streaming mit Keyword-Bias.
 Wake-Diagnosen bleiben flüchtig und zeigen im aktiven Fenster Audiopegel und
 den letzten begrenzten ASR-Text. Die native Befehlsaufnahme berechnet ihre
-Sprachschwelle aus dem zuvor gehörten Ruhepegel. Die Standardstimme ist lokales
+Sprachschwelle aus dem zuvor gehörten Ruhepegel. Die lokale Stimme verwendet
 Piper Thorsten High mit begrenzten WAV-Antworten über den eigenen JSON-Worker;
-optionales Gemini-TTS fällt bei einem Fehler auf Piper zurück. Beide warten auf
+Gemini-TTS fällt bei einem Fehler auf Piper zurück. Beide warten auf
 Wiedergabeende, bevor Wake bzw. die berechtigte Follow-up-Aufnahme fortgesetzt wird.
+
+Die drei Google-TTS-Modelle rotieren innerhalb von `GeminiSpeechOutput`, behalten
+die ausgewählte Stimme und sperren nur betroffene Modelle bei Rate-Limits.
+Sie teilen eine Deadline von 20 Sekunden; vor Wiedergabe wird das vollständige
+Audio validiert. `AdaptiveSpeechOutput` verwendet Piper bei Cloud-Fehlern und
+versucht die Cloud nach einer zweiminütigen Pause wieder, ohne Modell-Sperren zu
+löschen. Eine ausdrückliche Provider-Auswahl bzw. ein neuer Schlüssel setzt die
+Sperren zurück. Gemini ist wieder die bevorzugte Stimme; Piper bleibt auswählbar.

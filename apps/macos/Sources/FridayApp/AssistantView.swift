@@ -144,7 +144,7 @@ struct AssistantView: View {
                 if model.usesCloudSpeech {
                     Picker("Sprachausgabe", selection: $model.ttsProvider) {
                         Text("Piper · Deutsch · lokal und kostenlos").tag("local")
-                        Text("Gemini · Cloud-Kontingent").tag("gemini")
+                        Text("Gemini · 3 TTS-Modelle").tag("gemini")
                     }.disabled(model.isWorking)
                     if model.ttsProvider == "gemini" {
                     Picker("Stimme", selection: $model.ttsVoice) {

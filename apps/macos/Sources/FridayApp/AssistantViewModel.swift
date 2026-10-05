@@ -33,10 +33,12 @@ import FridayAdapters
             UserDefaults.standard.set(ttsVoice, forKey: "Friday.ttsVoice")
         }
     }
-    @Published var ttsProvider = UserDefaults.standard.string(forKey: "Friday.ttsProvider") ?? "local" {
+    @Published var ttsProvider = UserDefaults.standard.string(forKey: "Friday.ttsProvider") ?? "gemini" {
         didSet {
             adaptiveSpeech?.preferLocal = ttsProvider != "gemini"
             adaptiveSpeech?.resetCloudAvailability()
+            cloudSpeech?.resetModelAvailability()
+            speechNotice = ttsProvider == "gemini" ? "Gemini-Stimme · Piper nur als Ersatz" : "Piper · Thorsten High · lokal und kostenlos"
             UserDefaults.standard.set(ttsProvider, forKey: "Friday.ttsProvider")
         }
     }
@@ -194,8 +196,12 @@ import FridayAdapters
             model.cloudSpeech = cloudSpeech
             model.adaptiveSpeech = adaptiveSpeech; model.ttsWorker = ttsWorker
             adaptiveSpeech.preferLocal = model.ttsProvider != "gemini"
-            adaptiveSpeech.onNotice = { [weak model] notice in model?.speechNotice = notice }
-            model.speechNotice = adaptiveSpeech.preferLocal ? "Piper · Thorsten High · lokal und kostenlos" : "Gemini-TTS · kostenloses Kontingent begrenzt"
+            adaptiveSpeech.onNotice = { [weak model, weak cloudSpeech] notice in
+                if notice == "Gemini-Stimme", let selected = cloudSpeech?.lastModel {
+                    model?.speechNotice = "Gemini · \(selected)"
+                } else { model?.speechNotice = notice }
+            }
+            model.speechNotice = adaptiveSpeech.preferLocal ? "Piper · Thorsten High · lokal und kostenlos" : "Gemini-TTS · 3 Modelle · Piper als Ersatz"
             model.projectLocator = projectLocator
             cloudSpeech?.voiceName = model.ttsVoice
             model.reasoningLabel = reasoningLabel

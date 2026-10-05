@@ -86,19 +86,29 @@ Argumente und Arbeitsverzeichnis als getrennte Felder. MacToolExecutor führt Ap
 
 ## Sprachausgabe
 
-`LocalPiperSpeechOutput` ist die Standardausgabe für Gemini und Ollama.
+`LocalPiperSpeechOutput` ist die lokale Ausgabe für Ollama und der Ersatz für Gemini.
 Der lokale `tts`-Worker verwendet `piper_de_DE-thorsten-high`; `prepare-tts` lädt
 die Stimme ausdrücklich beim Setup. Der laufende Worker lädt nur vorhandene
 Dateien. Texte werden in höchstens 300 Zeichen lange Abschnitte aufgeteilt;
 JSON-Zeilen liefern begrenzte PCM16-WAV-Daten im Arbeitsspeicher an AVAudioPlayer.
 Es werden keine Audiodateien angelegt. `AdaptiveSpeechOutput` kann optional die
 Cloud-Stimme bevorzugen. Nach einem Cloud-Fehler übernimmt Piper, weitere
-Cloud-TTS-Anfragen bleiben für die Sitzung bis zum manuellen Zurücksetzen gesperrt.
+Cloud-TTS-Anfragen pausieren für zwei Minuten. Der Grund bleibt in der Anzeige erhalten.
 Eine eigene Anzeige hält Sprachfehler auch beim Übergang zurück zur Wake-Bereitschaft sichtbar.
 
-`GeminiSpeechOutput` verwendet optional Gemini 3.8 Flash-Lite TTS über die Interactions-API
-und den vorhandenen privaten Gemini-Schlüssel. Deutsche Sprechweise wird separat
-als Style-Metadaten vorgegeben; der Antworttext bleibt ein wörtliches Transkript.
+`GeminiSpeechOutput` verwendet abwechselnd drei Google-Modelle mit demselben lokalen Schlüssel:
+3.8 Flash-Lite TTS und 3.8 Flash TTS über die Interactions-API, 3.1 Flash TTS Preview
+über GenerateContent. Die beiden GA-Modelle liefern WAV; das Preview-Modell liefert
+PCM16, das erst nach Prüfung von Rate, Kanalzahl und Länge als WAV verpackt wird.
+`GeminiTTSModelPool` pausiert einzelne Modelle nach 429/404/5xx; Retry-After bzw.
+RetryInfo haben Vorrang, ein erkanntes Tageskontingent pausiert bis Mitternacht Pacific.
+Alle Modellversuche teilen eine Deadline von 20 Sekunden. Abbruch rotiert nicht weiter.
+Stimmen bleiben unverändert und der Modellname wird nach erfolgreichem Vorlesen angezeigt.
+Quelle: [TTS-Modelle](https://ai.google.dev/gemini-api/docs/speech-generation),
+[Limits pro Projekt und Modell](https://ai.google.dev/gemini-api/docs/rate-limits).
+
+Die GA-Anfragen verwenden strukturierte Style-Metadaten
+für deutsche Sprechweise; der Antworttext bleibt ein wörtliches Transkript.
 Kore, Aoede und Charon sind auswählbar. WAV-Audio spielt AVAudioPlayer ab; Abbruch
 stoppt Download und Wiedergabe. Generation- und Player-IDs verhindern verspäteten
 Start bzw. Abschluss. Bei TTS-Fehlern bleibt die erhaltene Textantwort verfügbar.

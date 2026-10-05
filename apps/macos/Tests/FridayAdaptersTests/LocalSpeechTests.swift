@@ -33,6 +33,24 @@ import FridayCore
     #expect(local.texts.isEmpty)
 }
 
+@Test @MainActor func cloudFallbackKeepsItsReasonAndRetriesAfterCooldown() async throws {
+    let local = LocalSpeechProbe(), cloud = LocalSpeechProbe()
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
+    let speech = AdaptiveSpeechOutput(local: local, cloud: cloud, now: { now })
+    speech.preferLocal = false
+    var notice = ""
+    speech.onNotice = { notice = $0 }
+    cloud.failure = AdapterError.unavailable("Sprachkontingent erreicht")
+    try await speech.speak("Eins")
+    try await speech.speak("Zwei")
+    #expect(notice.contains("Sprachkontingent erreicht"))
+    #expect(cloud.texts == ["Eins"])
+    now = now.addingTimeInterval(121); cloud.failure = nil
+    try await speech.speak("Drei")
+    #expect(cloud.texts == ["Eins", "Drei"])
+    #expect(local.texts == ["Eins", "Zwei"])
+}
+
 @Test @MainActor func localSpeechChunksKeepAllWordsAndRespectTheTransportBound() throws {
     let text = String(repeating: "Das ist ein längerer deutscher Satz. ", count: 80)
     let chunks = try LocalPiperSpeechOutput.chunks(text)

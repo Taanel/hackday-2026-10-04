@@ -90,17 +90,25 @@ import FridayCore
     public var onNotice: ((String) -> Void)?
     private let local: any SpeechOutput
     private let cloud: (any SpeechOutput)?
-    private var cloudUnavailable = false
-    public init(local: any SpeechOutput, cloud: (any SpeechOutput)?) { self.local = local; self.cloud = cloud }
+    private var cloudUnavailableUntil: Date?
+    private var cloudFailureNotice: String?
+    private let now: () -> Date
+    public init(local: any SpeechOutput, cloud: (any SpeechOutput)?, now: @escaping () -> Date = { Date() }) {
+        self.local = local; self.cloud = cloud; self.now = now
+    }
     public func speak(_ text: String) async throws {
-        if !preferLocal, !cloudUnavailable, let cloud {
+        if !preferLocal, cloudUnavailableUntil.map({ $0 <= now() }) ?? true, let cloud {
             do { try await cloud.speak(text); onNotice?("Gemini-Stimme"); return }
             catch is CancellationError { throw CancellationError() }
-            catch { cloudUnavailable = true; onNotice?("Gemini-Stimme nicht verfügbar · verwende Piper lokal") }
-        } else { onNotice?("Piper · Thorsten High · lokal und kostenlos") }
+            catch {
+                cloudUnavailableUntil = now().addingTimeInterval(120)
+                cloudFailureNotice = error.localizedDescription + " · Piper als Ersatz"
+                onNotice?(cloudFailureNotice!)
+            }
+        } else { onNotice?(!preferLocal ? cloudFailureNotice ?? "Piper · Thorsten High · lokal und kostenlos" : "Piper · Thorsten High · lokal und kostenlos") }
         try Task.checkCancellation()
         try await local.speak(text)
     }
-    public func resetCloudAvailability() { cloudUnavailable = false }
+    public func resetCloudAvailability() { cloudUnavailableUntil = nil; cloudFailureNotice = nil }
     public func stop() { local.stop(); cloud?.stop() }
 }
