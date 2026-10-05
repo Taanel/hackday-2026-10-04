@@ -7,32 +7,21 @@ import Testing
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let first = models.next(at: now)!
     let second = models.next(at: now)!
-    let third = models.next(at: now)!
-    #expect(Set([first, second, third]).count == 3)
+    #expect(Set([first, second]).count == 2)
+    #expect(GeminiTTSModelPool.models.allSatisfy { $0.hasPrefix("gemini-3.8-") })
     models.pause(first, until: now.addingTimeInterval(120))
     #expect(models.next(at: now) == second)
     models.pause(second, until: now.addingTimeInterval(120))
-    #expect(models.next(at: now) == third)
-    models.pause(third, until: now.addingTimeInterval(120))
     #expect(models.next(at: now) == nil)
     #expect(models.next(at: now.addingTimeInterval(121)) != nil)
 }
 
-@Test @MainActor func legacyGoogleSpeechUsesItsOwnSchemaAndWrapsOnlyValidatedPCM() throws {
-    let request = try GeminiSpeechOutput.makeRequest(text: "Hallo", apiKey: "test-key", voice: "Kore", model: "gemini-3.1-flash-tts-preview")
-    #expect(request.url?.path == "/v1beta/models/gemini-3.1-flash-tts-preview:generateContent")
-    let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
-    #expect(body["contents"] != nil)
-    #expect(!String(data: request.httpBody!, encoding: .utf8)!.contains("test-key"))
-    let pcm = Data([0, 0, 1, 0, 255, 127, 0, 128])
-    func reply(_ mime: String) throws -> Data {
-        try JSONSerialization.data(withJSONObject: ["candidates": [["content": ["parts": [["inlineData": ["mimeType": mime, "data": pcm.base64EncodedString()]]]]]]])
+@Test @MainActor func speechGenerationStaysOnGemini38() throws {
+    for model in GeminiTTSModelPool.models {
+        let request = try GeminiSpeechOutput.makeRequest(text: "Hallo", apiKey: "test-key", model: model)
+        #expect(request.url?.path == "/v1beta/interactions")
     }
-    let wav = try GeminiSpeechOutput.decodeAudio(reply("audio/l16; rate=24000; channels=1"), status: 200)
-    #expect(wav.prefix(4) == Data("RIFF".utf8))
-    #expect(wav.suffix(pcm.count) == pcm)
-    #expect(wav.count == pcm.count + 44)
-    #expect(throws: AdapterError.self) { try GeminiSpeechOutput.decodeAudio(reply("audio/l16; rate=16000; channels=2"), status: 200) }
+    #expect(throws: AdapterError.self) { try GeminiSpeechOutput.makeRequest(text: "Hallo", apiKey: "test-key", model: "gemini-3.1-flash-tts-preview") }
     #expect(throws: AdapterError.self) { try GeminiSpeechOutput.makeRequest(text: "Hallo", apiKey: "test-key", model: "unapproved-model") }
 }
 
@@ -61,8 +50,15 @@ private final class RotatingSpeechProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var names: [String] = []
     nonisolated(unsafe) private static var allLimited = false
-    static func reset(allLimited: Bool) { lock.lock(); defer { lock.unlock() }; names = []; self.allLimited = allLimited }
+    nonisolated(unsafe) private static var keyHeaders: [String] = []
+    nonisolated(unsafe) private static var limitLite = true
+    nonisolated(unsafe) private static var limitedKeys: Set<String> = []
+    static func reset(allLimited: Bool, limitLite: Bool = true, limitedKeys: Set<String> = []) {
+        lock.lock(); defer { lock.unlock() }
+        names = []; keyHeaders = []; self.allLimited = allLimited; self.limitLite = limitLite; self.limitedKeys = limitedKeys
+    }
     static var requested: [String] { lock.lock(); defer { lock.unlock() }; return names }
+    static var requestedKeys: [String] { lock.lock(); defer { lock.unlock() }; return keyHeaders }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -78,8 +74,11 @@ private final class RotatingSpeechProtocol: URLProtocol, @unchecked Sendable {
             }
             model = ((try? JSONSerialization.jsonObject(with: body ?? Data())) as? [String: Any])?["model"] as? String ?? "unknown"
         }
-        Self.lock.lock(); Self.names.append(model); let limited = Self.allLimited; Self.lock.unlock()
-        let status = limited || model == "gemini-3.8-flash-lite-tts" ? 429 : 200
+        let key = request.value(forHTTPHeaderField: "x-goog-api-key") ?? ""
+        Self.lock.lock(); Self.names.append(model); Self.keyHeaders.append(key)
+        let limited = Self.allLimited || Self.limitedKeys.contains(key) || (Self.limitLite && model == "gemini-3.8-flash-lite-tts")
+        Self.lock.unlock()
+        let status = limited ? 429 : 200
         let data: Data
         if status == 429 { data = Data(#"{"error":{"message":"10 requests per day"}}"#.utf8) }
         else if model == "gemini-3.1-flash-tts-preview" {
@@ -102,12 +101,20 @@ private final class RotatingSpeechProtocol: URLProtocol, @unchecked Sendable {
     let first = try await speech.generateAudio(text: "Hallo", apiKey: "test-key", voice: "Kore")
     let second = try await speech.generateAudio(text: "Wieder hallo", apiKey: "test-key", voice: "Kore")
     #expect(first.prefix(4) == Data("RIFF".utf8)); #expect(second.prefix(4) == Data("RIFF".utf8))
-    #expect(RotatingSpeechProtocol.requested == GeminiTTSModelPool.models)
-    #expect(speech.lastModel == "gemini-3.1-flash-tts-preview")
+    #expect(RotatingSpeechProtocol.requested == ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts", "gemini-3.8-flash-tts"])
+    #expect(speech.lastModel == "gemini-3.8-flash-tts")
     RotatingSpeechProtocol.reset(allLimited: true); speech.resetModelAvailability()
     await #expect(throws: AdapterError.self) { try await speech.generateAudio(text: "Hallo", apiKey: "test-key", voice: "Kore") }
     await #expect(throws: AdapterError.self) { try await speech.generateAudio(text: "Hallo", apiKey: "test-key", voice: "Kore") }
     #expect(RotatingSpeechProtocol.requested == GeminiTTSModelPool.models)
+    let voiceKeys = ["voice-key-1", "voice-key-2", "voice-key-3", "voice-key-4"]
+    RotatingSpeechProtocol.reset(allLimited: false, limitLite: false); speech.resetModelAvailability()
+    for _ in 0..<4 { _ = try await speech.generateAudio(text: "Hallo", apiKeys: voiceKeys, voice: "Kore") }
+    #expect(RotatingSpeechProtocol.requestedKeys == voiceKeys)
+    #expect(RotatingSpeechProtocol.requested.allSatisfy { $0.hasPrefix("gemini-3.8-") })
+    RotatingSpeechProtocol.reset(allLimited: false, limitLite: false, limitedKeys: ["voice-key-1"]); speech.resetModelAvailability()
+    for _ in 0..<4 { _ = try await speech.generateAudio(text: "Hallo", apiKeys: voiceKeys, voice: "Kore") }
+    #expect(RotatingSpeechProtocol.requestedKeys == ["voice-key-1", "voice-key-2", "voice-key-3", "voice-key-4", "voice-key-1", "voice-key-2"])
 }
 
 private final class PendingSpeechProtocol: URLProtocol, @unchecked Sendable {

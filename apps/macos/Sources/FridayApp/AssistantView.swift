@@ -144,7 +144,7 @@ struct AssistantView: View {
                 if model.usesCloudSpeech {
                     Picker("Sprachausgabe", selection: $model.ttsProvider) {
                         Text("Piper · Deutsch · lokal und kostenlos").tag("local")
-                        Text("Gemini · 3 TTS-Modelle").tag("gemini")
+                        Text("Gemini 3.8 · Flash / Flash-Lite").tag("gemini")
                     }.disabled(model.isWorking)
                     if model.ttsProvider == "gemini" {
                     Picker("Stimme", selection: $model.ttsVoice) {
@@ -155,6 +155,23 @@ struct AssistantView: View {
                     }
                     Text(model.speechNotice)
                         .font(.caption).foregroundStyle(.secondary)
+                    DisclosureGroup("TTS-Schlüssel · nur für Stimme") {
+                        ForEach(0..<4, id: \.self) { slot in
+                            HStack {
+                                SecureField(model.configuredTTSKeySlots.contains(slot) ? "TTS-Schlüssel \(slot + 1) ersetzen" : "TTS-Schlüssel \(slot + 1)", text: $model.ttsKeyInputs[slot])
+                                    .textFieldStyle(.roundedBorder).disabled(model.isWorking)
+                                Button("Speichern") { Task { await model.updateTTSKey(slot: slot) } }
+                                    .disabled(model.isWorking || model.ttsKeyInputs[slot].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                Button("Entfernen") { Task { await model.updateTTSKey(slot: slot, remove: true) } }
+                                    .disabled(model.isWorking || !model.configuredTTSKeySlots.contains(slot))
+                            }
+                        }
+                        Text(model.configuredTTSKeySlots.isEmpty ? "Noch keine separaten TTS-Schlüssel · verwende den ursprünglichen Gemini-Schlüssel." : "\(model.configuredTTSKeySlots.count) separate TTS-Schlüssel · Gemini-Antworten verwenden weiterhin den ursprünglichen Schlüssel.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("Schlüssel desselben Google-Projekts teilen ihr Kontingent.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if !model.ttsKeyStatus.isEmpty { Text(model.ttsKeyStatus).font(.caption).foregroundStyle(.secondary) }
+                    }
                 }
 
                 HStack {

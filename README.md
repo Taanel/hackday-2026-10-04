@@ -44,6 +44,18 @@ Google; Hex, Wake, Laya und die auswählbare Piper-Stimme bleiben lokal. Recherc
 oder den ausdrücklich genannten Wetter-Ort an Open-Meteo.
 Mit `reasoningProvider: "ollama"` in runtime.json lässt sich wieder lokal antworten.
 
+Unter „TTS-Schlüssel · nur für Stimme“ lassen sich vier separate Google-Schlüssel
+einzeln speichern, ersetzen und entfernen. Gespeicherte Schlüssel werden nicht
+wieder angezeigt. Sobald mindestens einer eingerichtet ist, verwendet die
+Sprachausgabe nur diese Schlüssel im Wechsel; Textantworten und Recherche bleiben
+beim ursprünglichen Gemini-Schlüssel. Ohne separate TTS-Schlüssel wird dieser auch
+für die Stimme verwendet. Die vier Plätze liegen ausschließlich lokal in
+`~/Library/Application Support/Friday/Credentials/gemini-tts-api-keys.json`
+(0600, Ordner 0700). Gleiche Schlüssel werden abgelehnt.
+Google zählt Limits pro Projekt, nicht pro Schlüssel: vier Schlüssel desselben
+Projekts erhöhen das Kontingent nicht. Verschiedene Projekte besitzen ihre eigenen
+Limits, deren tatsächliche Höhe in AI Studio geprüft werden muss.
+
 ## Direkt testen
 
 1. Auf den Orb klicken und auf „Bereit · Laya und Hex lokal“ warten.
@@ -74,10 +86,10 @@ Gemini zeigt die verschachtelnde solving-Animation. Nach Hex erscheint der erkan
 am Overlay; nach erfolgreicher Computeraktion verschwindet er nach einer Sekunde,
 bei Fragen nach acht Sekunden. Beim nächsten Befehl wird
 er entfernt. Das ist kein Wort-für-Wort-Live-Transkript.
-Gemini-Antworten werden standardmäßig mit Gemini-TTS vorgelesen. Drei Modelle
-wechseln sich ab: 3.8 Flash-Lite TTS, 3.8 Flash TTS und 3.1 Flash TTS Preview.
+Gemini-Antworten werden standardmäßig mit Gemini-TTS vorgelesen. Nur zwei 3.8-Modelle
+wechseln sich ab: 3.8 Flash-Lite TTS und 3.8 Flash TTS. 3.1 wird nicht mehr verwendet.
 Die gewählte Stimme (Kore, Aoede oder Charon) bleibt gleich. Bei Rate-Limits werden
-betroffene Modelle bis zum Retry-Zeitpunkt bzw. Tagesreset übersprungen. Alle
+betroffene Schlüssel-/Modellkombinationen bis zum Retry-Zeitpunkt bzw. Tagesreset übersprungen. Alle
 Versuche einer Antwort teilen ein 20-Sekunden-Zeitbudget. Die Anzeige nennt das
 tatsächlich verwendete Modell. Drei Stimmen oder Schlüssel im selben Google-
 Projekt erhöhen dessen Kontingent nicht; Modellkontingente hängen vom Projekt ab.
@@ -146,7 +158,7 @@ App-Starts und Notizen bleiben stumm.
 | Schnelle Entscheidung | Laya multilingual Core ML, Auswahl aus zehn Intents |
 | Computer Use | Installierte Apps starten, Safari-Suche, lokale Notizen, Schreibtischwechsel, offene Projekte finden |
 | Komplexe Antwort | Gemini 3.5 Flash-Lite (minimal), Ersatz 3.8 Flash (low); alternativ Ollama lokal |
-| Text → Sprache | Drei Gemini-TTS-Modelle im Wechsel; Piper Thorsten High lokal als Ersatz oder eigene Auswahl |
+| Text → Sprache | Gemini 3.8 Flash-/Flash-Lite-TTS, bis vier separate Sprachschlüssel; Piper Thorsten High als Ersatz oder eigene Auswahl |
 | Recherche | DuckDuckGo-Snippets, Open-Meteo-Prognose, Quellen separat zur Antwort |
 | Oberfläche | Menüleisten-Kugel und transparentes Thinking-Orb-Overlay; native MIT-Animationen |
 

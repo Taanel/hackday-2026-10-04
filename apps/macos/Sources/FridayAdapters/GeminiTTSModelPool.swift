@@ -1,8 +1,8 @@
 import Foundation
 
-/// One project, separate supported models. Voices and API keys do not change quotas.
+/// Availability for one credential. Voices do not change the project's quotas.
 struct GeminiTTSModelPool {
-    static let models = ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview"]
+    static let models = ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"]
     private var cursor = 0
     private var pausedUntil: [String: Date] = [:]
 

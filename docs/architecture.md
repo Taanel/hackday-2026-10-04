@@ -134,8 +134,11 @@ Piper Thorsten High mit begrenzten WAV-Antworten über den eigenen JSON-Worker;
 Gemini-TTS fällt bei einem Fehler auf Piper zurück. Beide warten auf
 Wiedergabeende, bevor Wake bzw. die berechtigte Follow-up-Aufnahme fortgesetzt wird.
 
-Die drei Google-TTS-Modelle rotieren innerhalb von `GeminiSpeechOutput`, behalten
-die ausgewählte Stimme und sperren nur betroffene Modelle bei Rate-Limits.
+Die beiden Google-TTS-Modelle aus der 3.8-Reihe rotieren innerhalb von
+`GeminiSpeechOutput` über bis vier lokal gespeicherte Sprachschlüssel. Der
+ursprüngliche Reasoning-Schlüssel bleibt davon unabhängig. Auswahl und Sperren
+gelten je Credential und Modell; Google-Projektlimits werden dadurch nicht erhöht.
+Die gewählte Stimme bleibt erhalten. 3.1 ist aus Request- und Audio-Code entfernt.
 Sie teilen eine Deadline von 20 Sekunden; vor Wiedergabe wird das vollständige
 Audio validiert. `AdaptiveSpeechOutput` verwendet Piper bei Cloud-Fehlern und
 versucht die Cloud nach einer zweiminütigen Pause wieder, ohne Modell-Sperren zu

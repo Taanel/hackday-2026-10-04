@@ -96,14 +96,21 @@ Cloud-Stimme bevorzugen. Nach einem Cloud-Fehler übernimmt Piper, weitere
 Cloud-TTS-Anfragen pausieren für zwei Minuten. Der Grund bleibt in der Anzeige erhalten.
 Eine eigene Anzeige hält Sprachfehler auch beim Übergang zurück zur Wake-Bereitschaft sichtbar.
 
-`GeminiSpeechOutput` verwendet abwechselnd drei Google-Modelle mit demselben lokalen Schlüssel:
-3.8 Flash-Lite TTS und 3.8 Flash TTS über die Interactions-API, 3.1 Flash TTS Preview
-über GenerateContent. Die beiden GA-Modelle liefern WAV; das Preview-Modell liefert
-PCM16, das erst nach Prüfung von Rate, Kanalzahl und Länge als WAV verpackt wird.
-`GeminiTTSModelPool` pausiert einzelne Modelle nach 429/404/5xx; Retry-After bzw.
+`GeminiSpeechOutput` verwendet ausschließlich 3.8 Flash-Lite TTS und 3.8 Flash TTS
+über die Interactions-API. Beide liefern WAV. `LocalGeminiTTSKeyStore` hält bis vier
+separate Sprachschlüssel außerhalb des Repos. `GeminiSpeechCredentials` lädt sie
+einmal pro Sitzung abseits des MainActor und verwirft alte Leseergebnisse nach
+Änderungen. Ohne separate Schlüssel bleibt der bisherige Hauptschlüssel die Stimme-
+Konfiguration; mit mindestens einem Sprachschlüssel wird der Hauptschlüssel nicht
+für TTS geladen. Die Reasoning-Engine und ihr Store bleiben unabhängig.
+
+Die Auswahl rotiert über Schlüssel und beide Modelle. Ein `GeminiTTSModelPool` pro
+Credential-Fingerprint pausiert nur betroffene Kombinationen nach 429/404/5xx.
+Ungültige Schlüssel (401) werden vollständig pausiert; der nächste darf übernehmen.
+Fingerprints und Schlüssel werden nicht ausgegeben. Retry-After bzw.
 RetryInfo haben Vorrang, ein erkanntes Tageskontingent pausiert bis Mitternacht Pacific.
 Alle Modellversuche teilen eine Deadline von 20 Sekunden. Abbruch rotiert nicht weiter.
-Stimmen bleiben unverändert und der Modellname wird nach erfolgreichem Vorlesen angezeigt.
+Die gewählte Stimme bleibt gleich, und der Modellname wird nach erfolgreichem Vorlesen angezeigt.
 Quelle: [TTS-Modelle](https://ai.google.dev/gemini-api/docs/speech-generation),
 [Limits pro Projekt und Modell](https://ai.google.dev/gemini-api/docs/rate-limits).
 

@@ -224,3 +224,22 @@ func speechStateLastsUntilPlaybackFinishesOrIsCancelled(cancel: Bool) async thro
     #expect(AssistantViewModel.isFollowUpQuestion("Welche Stadt meinst du?"))
     #expect(!AssistantViewModel.isFollowUpQuestion("Die Sonne scheint."))
 }
+
+@Test @MainActor func ttsSettingsKeepTheOriginalReasoningKeyAndClearOnlyTheSavedSlot() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let main = LocalGeminiKeyStore(directory: directory), tts = LocalGeminiTTSKeyStore(directory: directory)
+    try main.save("original-reasoning-key")
+    let model = AssistantViewModel(speech: SpeechSpy(), keyStore: main, ttsKeyStore: tts)
+    model.ttsKeyInputs[2] = "dedicated-voice-key"; model.ttsKeyInputs[3] = "unsaved-voice-key"
+    await model.updateTTSKey(slot: 2)
+    #expect(model.ttsKeyInputs[2].isEmpty)
+    #expect(model.ttsKeyInputs[3] == "unsaved-voice-key")
+    #expect(model.configuredTTSKeySlots == Set([2]))
+    #expect(try tts.loadKeys() == ["dedicated-voice-key"])
+    #expect(try main.load() == "original-reasoning-key")
+    #expect(!model.ttsKeyStatus.contains("dedicated-voice-key"))
+    await model.updateTTSKey(slot: 2, remove: true)
+    #expect(model.configuredTTSKeySlots.isEmpty)
+    #expect(try main.load() == "original-reasoning-key")
+}

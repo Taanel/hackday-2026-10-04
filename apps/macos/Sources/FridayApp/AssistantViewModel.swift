@@ -22,6 +22,9 @@ import FridayAdapters
     @Published var geminiKeyInput = ""
     @Published private(set) var geminiKeyConfigured = false
     @Published private(set) var geminiKeyStatus = ""
+    @Published var ttsKeyInputs = Array(repeating: "", count: 4)
+    @Published private(set) var configuredTTSKeySlots: Set<Int> = []
+    @Published private(set) var ttsKeyStatus = ""
     @Published private(set) var overlayTranscript = ""
     @Published private(set) var canReplayAnswer = false
     @Published private(set) var response = ""
@@ -64,6 +67,7 @@ import FridayAdapters
     private var projectLocator: MacProjectLocator?
     var usesCloudSpeech: Bool { cloudSpeech != nil }
     private let keyStore: LocalGeminiKeyStore
+    private let ttsKeyStore: LocalGeminiTTSKeyStore
     private var gemini: GeminiReasoningEngine?
     private var replayText: String?
     private var transcriptExpiry: Task<Void, Never>?
@@ -88,13 +92,30 @@ import FridayAdapters
         ),
         speech: any SpeechOutput = SystemSpeechOutput(),
         keyStore: LocalGeminiKeyStore = LocalGeminiKeyStore(),
+        ttsKeyStore: LocalGeminiTTSKeyStore = LocalGeminiTTSKeyStore(),
         homeAssistant: HomeAssistantClient = HomeAssistantClient()
     ) {
         self.router = router
         self.speech = speech
         self.keyStore = keyStore
+        self.ttsKeyStore = ttsKeyStore
         self.homeSettings = HomeAssistantSettings(client: homeAssistant)
         geminiKeyConfigured = keyStore.isConfigured
+        configuredTTSKeySlots = ttsKeyStore.configuredSlots
+    }
+
+    func updateTTSKey(slot: Int, remove: Bool = false) async {
+        guard !shuttingDown, !isWorking, ttsKeyInputs.indices.contains(slot) else { return }
+        isWorking = true; defer { isWorking = false }
+        do {
+            if remove { try ttsKeyStore.remove(slot: slot) }
+            else { try ttsKeyStore.save(ttsKeyInputs[slot], slot: slot) }
+            await cloudSpeech?.invalidateCredentials()
+            adaptiveSpeech?.resetCloudAvailability()
+            ttsKeyInputs[slot] = ""
+            configuredTTSKeySlots = ttsKeyStore.configuredSlots
+            ttsKeyStatus = "Lokal gespeichert · nur für Sprachausgabe."
+        } catch { ttsKeyStatus = error.localizedDescription }
     }
 
     func saveGeminiKey() async {
@@ -201,7 +222,7 @@ import FridayAdapters
                     model?.speechNotice = "Gemini · \(selected)"
                 } else { model?.speechNotice = notice }
             }
-            model.speechNotice = adaptiveSpeech.preferLocal ? "Piper · Thorsten High · lokal und kostenlos" : "Gemini-TTS · 3 Modelle · Piper als Ersatz"
+            model.speechNotice = adaptiveSpeech.preferLocal ? "Piper · Thorsten High · lokal und kostenlos" : "Gemini 3.8 TTS · Piper als Ersatz"
             model.projectLocator = projectLocator
             cloudSpeech?.voiceName = model.ttsVoice
             model.reasoningLabel = reasoningLabel
