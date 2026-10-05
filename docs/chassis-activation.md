@@ -29,6 +29,14 @@ Eine Berechtigung des Probeprozesses ersetzt nicht die Berechtigung von Friday.
   LLM-Aufrufe oder fortlaufende Sensorlogs.
 - Baseline entfernt Gravitation/langsame Änderungen; eine begrenzte adaptive
   Rauschschwelle und Hysterese erkennen kurze getrennte Impulse.
+- Ab Build 15 beträgt die voreingestellte Schwelle 0,030 g; bestehende persönliche
+  Einstellungen bleiben erhalten. Der Regler reicht bis 0,005 g statt zuvor
+  mindestens 0,040 g. Die wirksame Schwelle liegt bei mindestens siebenmal dem
+  gemessenen ruhigen Sensorrauschen und wird im Test angezeigt.
+- Kurze Tipps verändern die Gravitations-Baseline nicht mehr; dadurch erzeugt
+  die Filterung keinen künstlichen langen Nachlauf. Bei anhaltender Bewegung
+  wird die Baseline wieder nachgeführt. Kurze Nachschwinger innerhalb 100 ms
+  löschen einen gültigen ersten Tipp nicht mehr und zählen separat.
 - Zwei Impulse im Abstand 120–420 ms, danach 180 ms Ruhe zur Bestätigung.
   Ein einzelner Impuls startet nie eine Aufnahme. Lange Bewegungen, sehr starke
   Schläge, zu kleine Impulse und enges Nachschwingen werden verworfen.
@@ -51,6 +59,10 @@ normales Tippen und Trackpad-Nutzung: Der Doppeltipp-Zähler soll bei 0 bleiben.
 Danach mehrere absichtliche Doppeltipps. Bei verpassten Gesten Schwelle senken;
 bei unerwarteten Gesten erhöhen oder deaktivieren. Zum Vergleichen sind getrennte
 Testdurchläufe sinnvoll. Tisch, Schoß, Hülle und Anschlag verändern das Signal.
+Ab Build 15 werden außerdem erkannte Einzeltipps, Nachschwinger und der letzte
+Grund angezeigt: Eingabesuppression, Einmessen, Sperrzeit, lange Bewegung,
+starker Stoß oder fehlender zweiter Tipp. Ein erkannter Doppeltipp startet erst
+außerhalb des Testmodus eine Aufnahme, wenn „Durch Doppeltippen sprechen“ an ist.
 
 Automatische Tests verwenden synthetische Impulse und prüfen Paarzeitfenster,
 Eingabesuppression einschließlich verspäteter Ereignisse, Bewegungen, Rauschen,

@@ -8,7 +8,7 @@
     <key>CFBundleExecutable</key><string>Friday</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>14</string>
+    <key>CFBundleVersion</key><string>15</string>
     <key>NSLocalNetworkUsageDescription</key><string>Friday verbindet sich auf deinen Befehl mit deinem lokalen Home Assistant, um Geräte zu steuern.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>LSUIElement</key><true/>

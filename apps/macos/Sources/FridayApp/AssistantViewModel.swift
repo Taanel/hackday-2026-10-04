@@ -68,8 +68,12 @@ import FridayAdapters
     @Published private(set) var chassisStatus = "Optional · ausgeschaltet"
     @Published private(set) var chassisPairs = 0
     @Published private(set) var chassisRejected = 0
+    @Published private(set) var chassisTaps = 0
+    @Published private(set) var chassisAftershocks = 0
     @Published private(set) var chassisStrength = 0.0
-    @Published var chassisThreshold = UserDefaults.standard.object(forKey: "Friday.chassisThreshold") as? Double ?? 0.12 {
+    @Published private(set) var chassisEffectiveThreshold = 0.0
+    @Published private(set) var chassisDiagnostic = "Warte auf zwei Tipps."
+    @Published var chassisThreshold = UserDefaults.standard.object(forKey: "Friday.chassisThreshold") as? Double ?? 0.03 {
         didSet {
             chassis.threshold = chassisThreshold
             UserDefaults.standard.set(chassisThreshold, forKey: "Friday.chassisThreshold")
@@ -127,9 +131,23 @@ import FridayAdapters
             return !self.shuttingDown && self.isReady && !self.isWorking && !self.isRecording
         }
         chassis.onActivate = { [weak self] in self?.startRecording() }
-        chassis.onDiagnostics = { [weak self] pairs, rejected, strength in
+        chassis.onDiagnostics = { [weak self] diagnostic in
             guard let self, self.chassisTesting || OrbWindowActivity.shared.active else { return }
-            self.chassisPairs = pairs; self.chassisRejected = rejected; self.chassisStrength = strength
+            self.chassisPairs = diagnostic.pairs; self.chassisRejected = diagnostic.rejected
+            self.chassisTaps = diagnostic.taps; self.chassisAftershocks = diagnostic.aftershocks
+            self.chassisStrength = diagnostic.strength; self.chassisEffectiveThreshold = diagnostic.threshold
+            self.chassisDiagnostic = switch diagnostic.event {
+            case .waiting: "Warte auf zwei Tipps."
+            case .firstTap: "Ein Tipp erkannt · warte auf den zweiten."
+            case .doubleTap: "Doppeltipp erkannt."
+            case .aftershock: "Nachschwingen ignoriert · erster Tipp bleibt gültig."
+            case .inputBlocked: "Ignoriert: kürzlich Tastatur/Trackpad benutzt oder Aufnahme aktiv."
+            case .warmingUp: "Sensor wird kurz eingemessen · danach erneut tippen."
+            case .cooldown: "Kurze Pause nach der letzten Aktivierung."
+            case .longMovement: "Ignoriert: länger anhaltende Bewegung statt kurzem Tipp."
+            case .strongImpact: "Ignoriert: sehr starker Stoß. Leichter tippen."
+            case .missingSecondTap: "Ein Tipp erkannt · zweiter Tipp fehlte im Zeitfenster."
+            }
         }
         chassis.onError = { [weak self] error in
             self?.chassisEnabled = false; self?.chassisTesting = false; self?.chassisStatus = error
@@ -157,6 +175,8 @@ import FridayAdapters
             chassis.stop(); chassis.testOnly = true
             try chassis.start()
             chassisPairs = 0; chassisRejected = 0; chassisStrength = 0
+            chassisTaps = 0; chassisAftershocks = 0; chassisEffectiveThreshold = 0
+            chassisDiagnostic = "Warte auf zwei Tipps."
             chassisTesting = true
             chassisStatus = "30 Sekunden testen · keine Aufnahme durch Tippen"
             chassisTestTask = Task { [weak self] in

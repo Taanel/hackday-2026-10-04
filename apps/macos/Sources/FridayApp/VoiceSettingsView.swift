@@ -45,16 +45,19 @@ struct VoiceSettingsView: View {
                         Button(model.chassisTesting ? "Test beenden" : "30 Sekunden testen", systemImage: "hand.tap") {
                             if model.chassisTesting { model.finishChassisTest() } else { model.testChassis() }
                         }.disabled(!model.isReady || model.isWorking)
-                        Text("\(model.chassisPairs) Doppeltipps · \(model.chassisRejected) verworfen")
+                        Text("\(model.chassisPairs) Doppeltipps · \(model.chassisTaps) einzelne Tipps")
                             .font(.caption).monospacedDigit()
                     }
                     Text("Erst normal tippen und das Trackpad benutzen: Der Doppeltipp-Zähler soll bei 0 bleiben. Dann einige Doppeltipps probieren. Im Testmodus wird dadurch keine Aufnahme gestartet.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Text(model.chassisDiagnostic).font(.caption).textSelection(.enabled)
+                    Text("\(model.chassisRejected) Impulse ignoriert · \(model.chassisAftershocks) Nachschwinger")
+                        .font(.caption).foregroundStyle(.secondary)
                     LabeledContent("Erkennungsschwelle") {
-                        Slider(value: $model.chassisThreshold, in: 0.04...0.35, step: 0.01).frame(maxWidth: 200)
-                        Text(String(format: "%.2f g", model.chassisThreshold)).monospacedDigit()
+                        Slider(value: $model.chassisThreshold, in: 0.005...0.35, step: 0.005).frame(maxWidth: 200)
+                        Text(String(format: "%.3f g", model.chassisThreshold)).monospacedDigit()
                     }
-                    Text("Kleiner = empfindlicher. Letzter Impuls: \(String(format: "%.3f g", model.chassisStrength)). Auf weichen Unterlagen kann die Erkennung schwächer sein.")
+                    Text("Kleiner = empfindlicher. Bei verpassten leichten Tipps schrittweise senken, etwa auf 0,020 g. Letzter Impuls: \(String(format: "%.3f g", model.chassisStrength)) · aktive Schwelle: \(String(format: "%.3f g", model.chassisEffectiveThreshold)). Die aktive Schwelle berücksichtigt das Sensorrauschen.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

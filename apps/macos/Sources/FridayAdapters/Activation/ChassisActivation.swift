@@ -3,13 +3,23 @@ import CoreGraphics
 import Foundation
 import FridayMotion
 
+public struct ChassisDiagnostics: Sendable {
+    public let pairs: Int
+    public let taps: Int
+    public let rejected: Int
+    public let aftershocks: Int
+    public let strength: Double
+    public let threshold: Double
+    public let event: DoubleTapDetector.Event
+}
+
 @MainActor public final class ChassisActivation {
     public var onActivate: (() -> Void)?
-    public var onDiagnostics: ((Int, Int, Double) -> Void)?
+    public var onDiagnostics: ((ChassisDiagnostics) -> Void)?
     public var onError: ((String) -> Void)?
     public var canActivate: (() -> Bool)?
     public var testOnly = false
-    public var threshold = 0.12 { didSet { detector.threshold = threshold } }
+    public var threshold = 0.03 { didSet { detector.threshold = threshold } }
     public private(set) var isRunning = false
     private var session: OpaquePointer?
     private var detector = DoubleTapDetector()
@@ -79,7 +89,9 @@ import FridayMotion
         }
         if now - lastDiagnostics >= 1 {
             lastDiagnostics = now
-            onDiagnostics?(pairs, detector.rejectedPulses, detector.lastStrength)
+            onDiagnostics?(ChassisDiagnostics(pairs: pairs, taps: detector.acceptedTaps,
+                rejected: detector.rejectedPulses, aftershocks: detector.ignoredAftershocks,
+                strength: detector.lastStrength, threshold: detector.effectiveThreshold, event: detector.lastEvent))
         }
     }
 
